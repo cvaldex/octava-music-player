@@ -63,9 +63,8 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
 
 - [x] **0. Esqueleto** — proyecto XcodeGen, sandbox con acceso a carpeta (bookmark), esquema GRDB completo, escáner con
       caché de carátulas, grilla y detalle de disco, cola, reproducción secuencial, contador de reproducciones, favoritos,
-      barra de reproducción con punto de scrobble, ícono. **El código se escribió en un entorno sin Xcode y nunca se
-      compiló: la primera tarea es ejecutar `./bootstrap.sh`, compilar, correr los tests y corregir los errores.**
-      Luego el usuario verifica en Xcode que escanee su colección real y reproduzca un disco.
+      barra de reproducción con punto de scrobble, ícono. Compila sin errores con Xcode 27.1 (macOS 26) y pasan los
+      15 tests. *Pendiente: que el usuario verifique en Xcode que escanee su colección real y reproduzca un disco.*
 - [ ] **1. Biblioteca** — vigilancia con FSEvents (re-escaneo incremental, debounce), búsqueda por canción, bitrate,
       vistas Artistas / Canciones / Géneros / Favoritos, escaneo inicial rápido con muchas pistas.
 - [ ] **2. Reproducción** — gapless real (programar la siguiente pista antes del final), cola editable (arrastrar, quitar,
@@ -90,3 +89,6 @@ Actualiza esta lista al cerrar cada fase.
 - `PlaybackEngine` usa un contador `generation` para ignorar los callbacks de fin de pista provocados por `stop()`/`seek()`.
   Mantener ese patrón al implementar gapless.
 - `TagReader` toma "Album Artist" del frame TPE2 (`id3MetadataBand`).
+- `tools/build-runner.command`: ejecutor que se abre con doble clic y compila cuando aparece `build-logs/request`
+  (bootstrap | generate | build | test | all | env | gitstatus). Sirve para trabajar a distancia sin escribir en la Terminal;
+  el resultado queda en `build-logs/latest.log` (ignorado por git). Compila con `-derivedDataPath build/DerivedData`.
