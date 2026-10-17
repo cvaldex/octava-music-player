@@ -1,5 +1,6 @@
 import XCTest
 import GRDB
+import CoreServices
 @testable import Octava
 
 final class PlayQueueTests: XCTestCase {
@@ -170,8 +171,14 @@ final class TagParsingTests: XCTestCase {
 
     func testGenre() {
         XCTAssertEqual(TagReader.cleanGenre("(17)Rock"), "Rock")
-        XCTAssertNil(TagReader.cleanGenre("(17)"))
+        XCTAssertEqual(TagReader.cleanGenre("(17)"), "Rock")
+        XCTAssertEqual(TagReader.cleanGenre("9"), "Metal")
+        XCTAssertEqual(TagReader.cleanGenre("79"), "Hard Rock")
+        XCTAssertEqual(TagReader.cleanGenre("144"), "Thrash Metal")
+        XCTAssertNil(TagReader.cleanGenre("999"))
+        XCTAssertNil(TagReader.cleanGenre("  "))
         XCTAssertEqual(TagReader.cleanGenre("Jazz"), "Jazz")
+        XCTAssertEqual(TagReader.id3v1Genres.count, 148)
     }
 
     func testRelativePath() {
@@ -273,5 +280,56 @@ final class ID3UserTextReaderTests: XCTestCase {
 
     func testNotATag() {
         XCTAssertTrue(ID3UserTextReader.parse(tag: [0xFF, 0xFB, 0x90, 0x00, 0, 0, 0, 0, 0, 0]).isEmpty)
+    }
+}
+
+final class LibraryIndexTests: XCTestCase {
+    private func album(_ title: String, _ artist: String, _ year: Int?) -> Album {
+        Album(id: Int64(abs(title.hashValue % 10000)), title: title, albumArtist: artist, year: year, folderPath: title)
+    }
+
+    private func track(_ title: String, artist: String = "Artista", album: String = "Disco", genre: String? = nil, bitrate: Int? = nil) -> Track {
+        Track(relativePath: title + ".mp3", fileModifiedAt: Date(), title: title, artist: artist,
+              album: album, genre: genre, duration: 200, bitrate: bitrate)
+    }
+
+    func testArtistsGroupedAndSorted() {
+        let albums = [album("B", "Ángela", 2001), album("A", "zeta", 1999), album("C", "Ángela", 1995)]
+        let artists = LibraryIndex.artists(from: albums)
+        XCTAssertEqual(artists.map(\.name), ["Ángela", "zeta"])
+        XCTAssertEqual(artists.first?.albumCount, 2)
+        XCTAssertEqual(artists.first?.coverAlbum?.title, "C") // el más antiguo
+    }
+
+    func testGenresSkipEmpty() {
+        let tracks = [track("1", genre: "Rock"), track("2", genre: "Rock"), track("3", genre: " "), track("4", genre: nil), track("5", genre: "Jazz")]
+        let genres = LibraryIndex.genres(from: tracks)
+        XCTAssertEqual(genres.map(\.name), ["Jazz", "Rock"])
+        XCTAssertEqual(genres.last?.trackCount, 2)
+    }
+
+    func testSearchIgnoresCaseAndAccents() {
+        let albums = [album("Canción Animal", "Soda Stereo", 1990)]
+        let tracks = [track("De Música Ligera", artist: "Soda Stereo", album: "Canción Animal"),
+                      track("Persiana Americana", artist: "Soda Stereo", album: "Signos")]
+        let results = LibraryIndex.search("cancion", albums: albums, tracks: tracks)
+        XCTAssertEqual(results.albums.count, 1)
+        XCTAssertEqual(results.tracks.map(\.title), ["De Música Ligera"])
+        // Todas las palabras deben aparecer, en cualquier campo.
+        XCTAssertEqual(LibraryIndex.search("soda musica", albums: albums, tracks: tracks).tracks.count, 1)
+        XCTAssertTrue(LibraryIndex.search("   ", albums: albums, tracks: tracks).isEmpty)
+    }
+
+    func testBitrateLabel() {
+        XCTAssertEqual(LibraryIndex.bitrateLabel(for: [track("1", bitrate: 320), track("2", bitrate: 320)]), "320 kbps")
+        XCTAssertEqual(LibraryIndex.bitrateLabel(for: [track("1", bitrate: 200), track("2", bitrate: 250)]), "~225 kbps")
+        XCTAssertNil(LibraryIndex.bitrateLabel(for: [track("1")]))
+    }
+
+    func testFolderWatcherRelevance() {
+        XCTAssertTrue(FolderWatcher.isRelevant(paths: ["/m/a/1.MP3"], flags: [0]))
+        XCTAssertTrue(FolderWatcher.isRelevant(paths: ["/m/a/cover.jpg"], flags: [0]))
+        XCTAssertFalse(FolderWatcher.isRelevant(paths: ["/m/a/.DS_Store"], flags: [0]))
+        XCTAssertTrue(FolderWatcher.isRelevant(paths: ["/m/Disco nuevo"], flags: [FSEventStreamEventFlags(kFSEventStreamEventFlagItemIsDir)]))
     }
 }

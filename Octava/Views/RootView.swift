@@ -1,11 +1,16 @@
 import SwiftUI
 
-/// Ventana principal: barra lateral + contenido, y la barra de reproducción a lo ancho abajo.
+/// Ventana principal: barra lateral + contenido, panel de la cola a la derecha y la barra de reproducción abajo.
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var selection: SidebarItem = .albums
-    @State private var path: [Album] = []
+    @State private var navigator = Navigator()
+    @State private var query = ""
     @AppStorage("showQueue") private var showQueue = true
+
+    private var isSearching: Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,6 +26,7 @@ struct RootView: View {
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
                 }
+                .searchable(text: $query, placement: .toolbar, prompt: "Artista, álbum o canción")
                 .frame(minWidth: 0, maxWidth: .infinity)
 
                 if showQueue {
@@ -34,7 +40,16 @@ struct RootView: View {
             Divider().overlay(Theme.separator)
             PlayerBarView()
         }
+        .environment(navigator)
         .background(Theme.surface)
+        .onChange(of: selection) {
+            navigator.reset()
+            query = ""
+        }
+        .onChange(of: isSearching) { _, searching in
+            // Al empezar a buscar se vuelve a la raíz para mostrar los resultados.
+            if searching { navigator.reset() }
+        }
         .alert("Algo salió mal",
                isPresented: Binding(get: { model.errorMessage != nil },
                                     set: { if !$0 { model.errorMessage = nil } })) {
@@ -49,18 +64,42 @@ struct RootView: View {
         if model.musicFolder == nil {
             WelcomeView()
         } else {
+            NavigationStack(path: Binding(get: { navigator.path }, set: { navigator.path = $0 })) {
+                rootPage
+                    .navigationDestination(for: LibraryRoute.self) { route in
+                        switch route {
+                        case .album(let album):
+                            AlbumDetailView(album: album)
+                        case .artist(let name):
+                            ArtistDetailView(name: name)
+                        case .genre(let name):
+                            GenreDetailView(name: name)
+                        }
+                    }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var rootPage: some View {
+        if isSearching {
+            SearchResultsView(query: query.trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
             switch selection {
             case .albums:
-                NavigationStack(path: $path) {
-                    AlbumGridView()
-                        .navigationDestination(for: Album.self) { album in
-                            AlbumDetailView(album: album)
-                        }
-                }
-            default:
+                AlbumGridView()
+            case .artists:
+                ArtistsView()
+            case .songs:
+                SongsView()
+            case .genres:
+                GenresView()
+            case .favorites:
+                FavoritesView()
+            case .mostPlayed, .forgotten:
                 ContentUnavailableView(selection.title,
                                        systemImage: selection.systemImage,
-                                       description: Text("Esta vista llega en una próxima fase."))
+                                       description: Text("Las listas inteligentes llegan en la fase 3."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Theme.surface)
             }

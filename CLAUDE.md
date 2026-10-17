@@ -31,10 +31,13 @@ Octava/
   Theme/      Theme (tokens de color y tipografía del diseño claro) · formatDuration
   Models/     Track · Album (registros GRDB, Codable)
   Database/   AppDatabase (GRDB, migraciones)
-  Library/    LibraryScanner (actor) · TagReader · ID3UserTextReader (frames TXXX) · CoverCache · FolderAccess · LibraryStore
+  Library/    LibraryScanner (actor, lectura en paralelo) · TagReader · ID3UserTextReader (frames TXXX) · CoverCache
+              FolderAccess · FolderWatcher (FSEvents) · LibraryStore (biblioteca en memoria) · LibraryIndex (agrupar y buscar, testeado)
   Playback/   PlayQueue (cola con entradas únicas y repetición, testeada) · PlaybackEngine (AVAudioEngine, gapless)
               ReplayGain (cálculo, testeado) · NowPlayingCenter (Centro de Control, teclas multimedia) · scrobbleThreshold
-  Views/      RootView · SidebarView · AlbumGridView · AlbumDetailView · QueuePanel · PlayerBarView · AlbumCoverView · WelcomeView · Components
+  Views/      RootView (navegación y búsqueda) · Navigation (rutas, Navigator, PageHeader) · SidebarView · AlbumGridView
+              AlbumGrid · AlbumDetailView · LibraryPages (Artistas, Canciones, Géneros, Favoritos, Búsqueda) · TrackTable
+              QueuePanel · PlayerBarView · AlbumCoverView · WelcomeView · Components
   Resources/  Assets.xcassets (AppIcon, AccentColor)
 OctavaTests/  Tests de cola, regla de scrobble, parseo de tags y base de datos
 ```
@@ -66,8 +69,12 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
       caché de carátulas, grilla y detalle de disco, cola, reproducción secuencial, contador de reproducciones, favoritos,
       barra de reproducción con punto de scrobble, ícono. Compila sin errores con Xcode 27.1 (macOS 26) y pasan los
       15 tests. *Pendiente: que el usuario verifique en Xcode que escanee su colección real y reproduzca un disco.*
-- [ ] **1. Biblioteca** — vigilancia con FSEvents (re-escaneo incremental, debounce), búsqueda por canción, bitrate,
-      vistas Artistas / Canciones / Géneros / Favoritos, escaneo inicial rápido con muchas pistas.
+- [x] **1. Biblioteca** — vigilancia de la carpeta con FSEvents (`FolderWatcher`, escaneo incremental 2 s después del
+      último cambio; el aviso de escaneo solo aparece si dura más de 1,5 s), búsqueda global en la barra de herramientas
+      (discos y canciones, sin distinguir mayúsculas ni acentos, todas las palabras), bitrate por canción y por disco,
+      vistas Artistas (→ discos del artista), Canciones (tabla ordenable), Géneros (→ canciones del género) y Favoritos,
+      lectura de tags en paralelo (8 a la vez), géneros numéricos de ID3v1 traducidos a su nombre. Migraciones `v3`
+      (releer tags por el bitrate) y `v4` (géneros numéricos). *Pendiente de verificar por el usuario en Xcode.*
 - [x] **2. Reproducción** — gapless (la siguiente pista se programa 10 s antes del final si tiene el mismo formato),
       cola editable (arrastrar, quitar, "reproducir a continuación", "agregar al final", doble clic para saltar) en un
       panel lateral global (inspector), reanudar al abrir (instantánea en `appState`), ReplayGain leído de frames TXXX
@@ -110,6 +117,12 @@ Actualiza esta lista al cerrar cada fase.
   Enter para reproducir, ↑/↓ para moverse.
 - Ojo: al copiar al Mac con la herramienta de archivos, verificar con md5; una segunda copia del mismo archivo a veces no
   se aplica.
+- `Table` (TrackTable): las celdas viven en vistas de AppKit propias. **Nada dentro de una celda ni de un menú
+  contextual puede usar `@Environment`** (se cerraba la app al desplazar): pasar los datos explícitamente. Sin
+  animaciones dentro de las celdas, y `.id(sortIdentity)` para reconstruir la tabla al cambiar el orden (animar el
+  reordenamiento de miles de filas colgaba la app).
+- Navegación: `Navigator` (en el entorno) guarda la ruta (`LibraryRoute`: disco, artista, género). Al cambiar de sección
+  o empezar a buscar se vuelve a la raíz.
 - No usar `withAnimation(.repeatForever)` en vistas: la animación infinita se contagia a los cambios de diseño vecinos
   (la cola crecía y se achicaba). Las animaciones continuas van con `TimelineView` (ver `PlayingBars`).
 - Ajustes de reproducción (repetir, normalización, volumen, seguir con mezcla) en `UserDefaults`; la cola en `appState`.

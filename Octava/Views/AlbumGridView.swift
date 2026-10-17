@@ -3,47 +3,20 @@ import SwiftUI
 /// Pantalla "Álbumes": grilla de carátulas agrupadas por artista del álbum.
 struct AlbumGridView: View {
     @Environment(AppModel.self) private var model
-    @State private var query = ""
-
-    private let columns = [GridItem(.adaptive(minimum: 160, maximum: 240), spacing: 22, alignment: .top)]
-
-    private var filteredAlbums: [Album] {
-        let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return model.library.albums }
-        // Fase 1: búsqueda también por canción.
-        return model.library.albums.filter {
-            $0.title.localizedCaseInsensitiveContains(trimmed) || $0.albumArtist.localizedCaseInsensitiveContains(trimmed)
-        }
-    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
 
-                if model.isScanning {
+                if model.showsScanProgress {
                     ScanBanner(progress: model.scanProgress)
                 }
 
-                if filteredAlbums.isEmpty && !model.isScanning {
+                if model.library.albums.isEmpty && !model.isScanning {
                     emptyState
                 } else {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
-                        ForEach(filteredAlbums) { album in
-                            NavigationLink(value: album) {
-                                AlbumTile(album: album,
-                                          isPlaying: album.id != nil && model.player.currentTrack?.albumId == album.id)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button("Reproducir") { model.play(album: album) }
-                                Button("Reproducir en orden aleatorio") { model.playShuffled(album: album) }
-                                Divider()
-                                Button("Reproducir a continuación") { model.playNext(album: album) }
-                                Button("Agregar al final de la cola") { model.addToQueue(album: album) }
-                            }
-                        }
-                    }
+                    AlbumGrid(albums: model.library.albums)
                 }
             }
             .padding(.horizontal, 32)
@@ -51,7 +24,6 @@ struct AlbumGridView: View {
             .padding(.bottom, 32)
         }
         .background(Theme.surface)
-        .searchable(text: $query, prompt: "Artista o álbum")
         .navigationTitle("Octava")
     }
 
@@ -90,16 +62,12 @@ struct AlbumGridView: View {
 
     private var emptyState: some View {
         ContentUnavailableView {
-            Label(query.isEmpty ? "Tu biblioteca está vacía" : "Sin resultados", systemImage: "music.note.list")
+            Label("Tu biblioteca está vacía", systemImage: "music.note.list")
         } description: {
-            Text(query.isEmpty
-                 ? "No encontramos MP3 en la carpeta elegida. Puedes volver a escanear o elegir otra carpeta."
-                 : "Ningún disco coincide con “\(query)”.")
+            Text("No encontramos MP3 en la carpeta elegida. Puedes volver a escanear o elegir otra carpeta.")
         } actions: {
-            if query.isEmpty {
-                Button("Volver a escanear") { Task { await model.rescan() } }
-                Button("Elegir otra carpeta…") { model.chooseFolder() }
-            }
+            Button("Volver a escanear") { Task { await model.rescan() } }
+            Button("Elegir otra carpeta…") { model.chooseFolder() }
         }
         .frame(maxWidth: .infinity, minHeight: 320)
     }
@@ -182,6 +150,6 @@ struct ScanBanner: View {
 
     private var label: String {
         guard let progress else { return "Buscando archivos…" }
-        return "Escaneando \(progress.processed) de \(progress.total) archivos"
+        return "Leyendo \(progress.processed.formatted()) de \(progress.total.formatted()) archivos nuevos o modificados"
     }
 }

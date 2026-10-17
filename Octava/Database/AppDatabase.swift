@@ -121,6 +121,21 @@ final class AppDatabase: Sendable {
             try db.execute(sql: "UPDATE track SET fileModifiedAt = ?", arguments: [Date(timeIntervalSince1970: 0)])
         }
 
+        // Fase 1: el escáner ahora guarda el bitrate. Igual que v2, fuerza a releer los tags una vez.
+        migrator.registerMigration("v3") { db in
+            try db.execute(sql: "UPDATE track SET fileModifiedAt = ?", arguments: [Date(timeIntervalSince1970: 0)])
+        }
+
+        // Fase 1: los géneros guardados como código numérico de ID3v1 ("17", "(9)") pasan a su nombre.
+        migrator.registerMigration("v4") { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT id, genre FROM track WHERE genre GLOB '[0-9]*' OR genre GLOB '(*'")
+            for row in rows {
+                let id: Int64 = row["id"]
+                let genre: String? = row["genre"]
+                try db.execute(sql: "UPDATE track SET genre = ? WHERE id = ?", arguments: [TagReader.cleanGenre(genre), id])
+            }
+        }
+
         return migrator
     }
 }

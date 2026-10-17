@@ -32,6 +32,9 @@ actor LibraryScanner {
         self.database = database
     }
 
+    /// Cantidad de archivos cuyos tags se leen en paralelo.
+    private let concurrency = 8
+
     func scan(root: URL, progress: @escaping @Sendable (Progress) -> Void) async throws -> Summary {
         let rootPath = root.standardizedFileURL.path
         let files = try Self.listMP3Files(in: root)
@@ -49,41 +52,66 @@ actor LibraryScanner {
             return result
         }
 
+        // Solo se leen los archivos nuevos o modificados desde el último escaneo.
         var seen = Set<String>()
-        var pending: [ParsedFile] = []
-        progress(Progress(processed: 0, total: files.count))
-
-        for (index, file) in files.enumerated() {
-            try Task.checkCancellation()
+        var changed: [(file: FoundFile, relative: String, isNew: Bool)] = []
+        for file in files {
             let relative = Self.relativePath(of: file.url, rootPath: rootPath)
             seen.insert(relative)
+            if let stored = known[relative] {
+                if abs(stored.timeIntervalSince(file.modifiedAt)) > 1 {
+                    changed.append((file, relative, false))
+                }
+            } else {
+                changed.append((file, relative, true))
+            }
+        }
 
-            let isNew = known[relative] == nil
-            let changed = known[relative].map { abs($0.timeIntervalSince(file.modifiedAt)) > 1 } ?? true
-            if changed {
-                do {
-                    let tags = try await TagReader.read(url: file.url)
-                    let folderURL = file.url.deletingLastPathComponent()
+        progress(Progress(processed: 0, total: changed.count))
+        var pending: [ParsedFile] = []
+        var processed = 0
+
+        // Lectura en paralelo por tandas: la lectura de tags es sobre todo espera de disco.
+        for chunkStart in stride(from: 0, to: changed.count, by: concurrency) {
+            try Task.checkCancellation()
+            let chunk = Array(changed[chunkStart..<min(chunkStart + concurrency, changed.count)])
+            let results = await withTaskGroup(of: (Int, Result<TrackTags, Error>).self) { group in
+                for (offset, item) in chunk.enumerated() {
+                    let url = item.file.url
+                    group.addTask {
+                        do { return (offset, .success(try await TagReader.read(url: url))) }
+                        catch { return (offset, .failure(error)) }
+                    }
+                }
+                var collected: [(Int, Result<TrackTags, Error>)] = []
+                for await result in group { collected.append(result) }
+                return collected.sorted { $0.0 < $1.0 }
+            }
+
+            for (offset, result) in results {
+                let item = chunk[offset]
+                switch result {
+                case .success(let tags):
+                    let folderURL = item.file.url.deletingLastPathComponent()
                     pending.append(ParsedFile(
-                        relativePath: relative,
-                        modifiedAt: file.modifiedAt,
+                        relativePath: item.relative,
+                        modifiedAt: item.file.modifiedAt,
                         folderRelativePath: Self.relativePath(of: folderURL, rootPath: rootPath),
                         folderURL: folderURL,
                         tags: tags))
-                    if isNew { summary.added += 1 } else { summary.updated += 1 }
-                } catch {
+                    if item.isNew { summary.added += 1 } else { summary.updated += 1 }
+                case .failure(let error):
                     summary.failed += 1
-                    print("Octava: no se pudieron leer los tags de \(relative): \(error)")
+                    print("Octava: no se pudieron leer los tags de \(item.relative): \(error)")
                 }
             }
 
+            processed += chunk.count
             if pending.count >= batchSize {
                 try await save(pending)
                 pending.removeAll(keepingCapacity: true)
             }
-            if index % 25 == 0 || index == files.count - 1 {
-                progress(Progress(processed: index + 1, total: files.count))
-            }
+            progress(Progress(processed: processed, total: changed.count))
         }
         if !pending.isEmpty {
             try await save(pending)
@@ -131,6 +159,7 @@ actor LibraryScanner {
                 track.duration = tags.duration
                 track.replayGainTrack = tags.replayGainTrack
                 track.replayGainAlbum = tags.replayGainAlbum
+                track.bitrate = tags.bitrate
                 track.albumId = album.id
                 try track.save(db)
 
@@ -190,7 +219,7 @@ actor LibraryScanner {
 
     // MARK: Archivos
 
-    private struct FoundFile { var url: URL; var modifiedAt: Date }
+    struct FoundFile: Sendable { var url: URL; var modifiedAt: Date }
 
     private static func listMP3Files(in root: URL) throws -> [FoundFile] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]

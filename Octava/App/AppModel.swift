@@ -13,6 +13,9 @@ final class AppModel {
     private(set) var musicFolder: URL?
     private(set) var isScanning = false
     private(set) var scanProgress: LibraryScanner.Progress?
+    /// El escaneo en curso lleva más de un momento: recién ahí se muestra el aviso (los escaneos
+    /// incrementales de la vigilancia de carpeta suelen durar menos de un segundo y no deben parpadear).
+    private(set) var showsScanProgress = false
     var errorMessage: String?
 
     /// Al terminar la cola, seguir con una mezcla aleatoria de la colección.
@@ -25,6 +28,9 @@ final class AppModel {
 
     @ObservationIgnored private var accessedFolder: URL?
     @ObservationIgnored private var terminationObserver: NSObjectProtocol?
+    @ObservationIgnored private var folderWatcher: FolderWatcher?
+    @ObservationIgnored private var pendingRescanTask: Task<Void, Never>?
+    @ObservationIgnored private var rescanRequestedDuringScan = false
 
     private enum SettingsKey {
         static let continueWithMix = "continueWithMix"
@@ -60,7 +66,7 @@ final class AppModel {
             self?.savePlaybackState()
         }
         player.artworkProvider = { [weak self] track in
-            guard let path = self?.library.albums.first(where: { $0.id == track.albumId })?.coverCachePath else { return nil }
+            guard let path = self?.library.album(id: track.albumId)?.coverCachePath else { return nil }
             return NSImage(contentsOfFile: path)
         }
 
@@ -99,24 +105,61 @@ final class AppModel {
         accessedFolder = folder
         musicFolder = folder
         player.rootURL = folder
+
+        // Vigilar la carpeta: los cambios hechos fuera de la app (discos nuevos, borrados, tags editados
+        // en otro programa) se incorporan solos con un escaneo incremental.
+        folderWatcher?.stop()
+        folderWatcher = FolderWatcher(url: folder) { [weak self] in
+            MainActor.assumeIsolated { self?.folderDidChange() }
+        }
+    }
+
+    /// Cambio detectado en la carpeta: esperar a que se calme (copiar un disco genera muchos eventos) y re-escanear.
+    private func folderDidChange() {
+        pendingRescanTask?.cancel()
+        pendingRescanTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            await self?.rescan()
+        }
     }
 
     // MARK: Escaneo
 
     func rescan() async {
-        guard let folder = musicFolder, !isScanning else { return }
+        guard let folder = musicFolder else { return }
+        guard !isScanning else {
+            // Llegaron cambios durante un escaneo: repetir al terminar.
+            rescanRequestedDuringScan = true
+            return
+        }
         isScanning = true
         scanProgress = nil
-        defer { isScanning = false }
+        let progressDelay = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            self?.showsScanProgress = true
+        }
 
         let scanner = LibraryScanner(database: database)
         do {
-            _ = try await scanner.scan(root: folder) { [weak self] progress in
+            let summary = try await scanner.scan(root: folder) { [weak self] progress in
                 Task { @MainActor in self?.scanProgress = progress }
             }
-            library.reload()
+            if summary.added + summary.updated + summary.removed > 0 || library.albums.isEmpty {
+                library.reload()
+            }
         } catch {
             errorMessage = "No se pudo escanear la carpeta: \(error.localizedDescription)"
+        }
+
+        progressDelay.cancel()
+        showsScanProgress = false
+        isScanning = false
+
+        if rescanRequestedDuringScan {
+            rescanRequestedDuringScan = false
+            await rescan()
         }
     }
 
@@ -126,6 +169,25 @@ final class AppModel {
         let tracks = library.tracks(for: album)
         guard !tracks.isEmpty else { return }
         player.play(tracks: tracks, startAt: index, source: .album)
+    }
+
+    /// Reproduce una lista de canciones (tablas de canciones, favoritos, género, búsqueda) desde una posición.
+    func play(tracks: [Track], startingAt index: Int = 0) {
+        guard !tracks.isEmpty else { return }
+        player.play(tracks: tracks, startAt: index, source: .mix)
+    }
+
+    func playShuffled(tracks: [Track]) {
+        let mix = Array(tracks.shuffled().prefix(Self.mixSize))
+        guard !mix.isEmpty else { return }
+        player.play(tracks: mix, source: .mix)
+    }
+
+    /// Discografía de un artista, disco por disco (la ganancia de disco se respeta en modo automático).
+    func play(artist name: String) {
+        let tracks = library.tracks(byArtist: name)
+        guard !tracks.isEmpty else { return }
+        player.play(tracks: tracks, source: .album)
     }
 
     func playShuffled(album: Album) {

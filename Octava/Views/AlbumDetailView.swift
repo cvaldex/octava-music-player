@@ -79,7 +79,9 @@ struct AlbumDetailView: View {
                 .foregroundStyle(Theme.navText)
                 .lineLimit(1)
                 .padding(.top, 8)
-            Text("\(tracks.count) canciones · \(totalMinutes) min · MP3")
+            Text(["\(tracks.count) canciones", "\(totalMinutes) min", "MP3", LibraryIndex.bitrateLabel(for: tracks)]
+                    .compactMap { $0 }
+                    .joined(separator: " · "))
                 .font(Theme.mono(11))
                 .foregroundStyle(Theme.secondaryText)
                 .padding(.top, 10)

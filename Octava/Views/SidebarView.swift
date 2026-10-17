@@ -85,12 +85,12 @@ struct SidebarView: View {
             }
             .help("El scrobbling llega en la fase 5")
 
-            if model.isScanning, let progress = model.scanProgress {
-                Text("Escaneando \(progress.processed) de \(progress.total)")
+            if model.showsScanProgress, let progress = model.scanProgress {
+                Text("Leyendo \(progress.processed) de \(progress.total)")
                     .font(Theme.mono(11))
                     .foregroundStyle(Theme.secondaryText)
             } else {
-                Text("\(model.library.trackCount) canciones · \(model.library.albums.count) discos")
+                Text("\(model.library.trackCount.formatted()) canciones · \(model.library.albums.count.formatted()) discos")
                     .font(Theme.mono(11))
                     .foregroundStyle(Theme.secondaryText)
             }
