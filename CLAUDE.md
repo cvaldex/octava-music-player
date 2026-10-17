@@ -82,7 +82,13 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
       Centro de Control (`NowPlayingCenter`), repetir (sin repetir/todo/una), "seguir con una mezcla al terminar la cola".
       Migración `v2` fuerza a releer los tags una vez. *Pendiente de verificar por el usuario en Xcode.*
       Fuera de esta fase: calcular ReplayGain cuando el MP3 no lo trae (análisis de audio, costoso) → opcional en fase 6.
-- [ ] **3. Listas** — generador con filtros (artista, género, década), shuffle inteligente, listas guardadas y dinámicas.
+- [x] **3. Listas** — mezclas con filtros (`MixRule`: origen colección/favoritos/olvidadas + artistas, géneros y
+      décadas; ventana "Filtros…" en Álbumes y ⇧⌘M) que se rellenan solas para tener siempre 100 canciones por delante
+      (`AppModel.refillMixIfNeeded`, la cola conserva solo 50 ya escuchadas). Shuffle inteligente (`MixBuilder`): primero
+      lo no escuchado en 7 días, al final lo reciente; sin el mismo artista en las últimas 2 ni el mismo disco seguido.
+      Listas guardadas (`PlaylistStore`, tablas `playlist`/`playlistItem`): "Nueva lista", "Agregar a lista" en todos los
+      menús, "Guardar la cola como lista", reordenar/quitar, renombrar/eliminar. Dinámicas: Más escuchadas (top 100) y
+      Hace tiempo sin oír (6 meses o nunca). *Pendiente de verificar por el usuario en Xcode.*
 - [ ] **4. Edición de tags** — ID3TagEditor, editor individual y por lote según `docs/DESIGN.md`, deshacer, evitar eco de FSEvents.
 - [ ] **5. Last.fm** — autenticación de escritorio, now playing, scrobble (regla en `scrobbleThreshold`), cola offline
       en `scrobbleQueue` con reenvío por lotes, love/unlove, ajustes.
@@ -132,3 +138,6 @@ Actualiza esta lista al cerrar cada fase.
   (bootstrap | generate | build | test | all | env | gitstatus | gitcommit). `build-logs/wait.sh <comando>` envía el pedido
   y espera el resultado. Sirve para trabajar a distancia sin escribir en la Terminal;
   el resultado queda en `build-logs/latest.log` (ignorado por git). Compila con `-derivedDataPath build/DerivedData`.
+- Mezclas: mientras `activeMix` exista (se guarda en UserDefaults), cada cambio de la cola la rellena. Reproducir un
+  disco, una lista o una tabla la detiene; "Limpiar" la cola también (si no, se rellenaría al instante).
+- Diálogos de nombre/confirmación desde menús: `TextPrompt` (NSAlert modal), no hojas de SwiftUI.

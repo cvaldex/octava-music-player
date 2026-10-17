@@ -27,19 +27,42 @@ struct AlbumGridView: View {
         .navigationTitle("Octava")
     }
 
+    /// Encabezado adaptable: con poco ancho (cola abierta, ventana angosta), los controles bajan a otra línea.
     private var header: some View {
-        let library = model.library
-
-        return HStack(alignment: .bottom, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Álbumes")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Theme.ink)
-                Text(library.sort == .artist ? "Agrupados por artista del álbum" : "Ordenados por \(library.sort.rawValue.lowercased())")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.secondaryText)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .bottom, spacing: 16) {
+                headerTitle
+                Spacer(minLength: 16)
+                headerControls(compact: false)
             }
-            Spacer(minLength: 16)
+            VStack(alignment: .leading, spacing: 14) {
+                headerTitle
+                headerControls(compact: false)
+            }
+            VStack(alignment: .leading, spacing: 14) {
+                headerTitle
+                headerControls(compact: true)
+            }
+        }
+    }
+
+    private var headerTitle: some View {
+        let library = model.library
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Álbumes")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(Theme.ink)
+            Text(library.sort == .artist ? "Agrupados por artista del álbum" : "Ordenados por \(library.sort.rawValue.lowercased())")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.secondaryText)
+                .lineLimit(1)
+        }
+        .fixedSize()
+    }
+
+    private func headerControls(compact: Bool) -> some View {
+        let library = model.library
+        return HStack(spacing: 10) {
             Picker("Ordenar por", selection: Binding(get: { library.sort }, set: { library.setSort($0) })) {
                 ForEach(AlbumSort.allCases) { sort in
                     Text(sort.rawValue).tag(sort)
@@ -50,14 +73,28 @@ struct AlbumGridView: View {
             .fixedSize()
 
             Button {
+                model.showsMixBuilder = true
+            } label: {
+                Label("Filtros…", systemImage: "line.3.horizontal.decrease")
+                    .labelStyle(CompactLabelStyle(compact: compact))
+                    .font(.system(size: 13))
+            }
+            .buttonStyle(OutlineButtonStyle())
+            .disabled(library.trackCount == 0)
+            .help("Mezcla por artista, género o década")
+
+            Button {
                 model.playShuffledLibrary()
             } label: {
                 Label("Mezcla aleatoria", systemImage: "shuffle")
+                    .labelStyle(CompactLabelStyle(compact: compact))
                     .font(.system(size: 13, weight: .semibold))
             }
             .buttonStyle(AccentButtonStyle())
-            .disabled(model.library.trackCount == 0)
+            .disabled(library.trackCount == 0)
+            .help("Mezcla aleatoria de toda la colección, que se rellena sola")
         }
+        .fixedSize()
     }
 
     private var emptyState: some View {
@@ -151,5 +188,21 @@ struct ScanBanner: View {
     private var label: String {
         guard let progress else { return "Buscando archivos…" }
         return "Leyendo \(progress.processed.formatted()) de \(progress.total.formatted()) archivos nuevos o modificados"
+    }
+}
+
+/// Etiqueta que muestra solo el ícono cuando falta espacio.
+struct CompactLabelStyle: LabelStyle {
+    let compact: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if compact {
+            configuration.icon
+        } else {
+            HStack(spacing: 6) {
+                configuration.icon
+                configuration.title
+            }
+        }
     }
 }

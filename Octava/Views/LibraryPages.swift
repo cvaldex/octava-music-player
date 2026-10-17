@@ -10,8 +10,9 @@ struct SongsView: View {
         let tracks = model.library.tracks
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: "Canciones", subtitle: countLabel(tracks.count, singular: "canción", plural: "canciones")) {
-                ShuffleButton { model.playShuffled(tracks: tracks) }
+                ShuffleButton { model.startMix(MixRule()) }
                     .disabled(tracks.isEmpty)
+                    .help("Mezcla de toda la colección que se rellena sola")
             }
             .padding(.horizontal, 32)
             .padding(.top, 28)
@@ -31,7 +32,7 @@ struct FavoritesView: View {
         let tracks = model.library.favoriteTracks
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: "Favoritos", subtitle: countLabel(tracks.count, singular: "canción", plural: "canciones")) {
-                ShuffleButton { model.playShuffled(tracks: tracks) }
+                ShuffleButton { model.startMix(MixRule(source: .favorites)) }
                     .disabled(tracks.isEmpty)
             }
             .padding(.horizontal, 32)
@@ -90,7 +91,7 @@ struct ArtistsView: View {
                 }
                 .contextMenu {
                     Button("Reproducir discografía") { model.play(artist: artist.name) }
-                    Button("Mezclar canciones") { model.playShuffled(tracks: model.library.tracks(byArtist: artist.name)) }
+                    Button("Mezclar canciones") { model.startMix(MixRule(artists: [artist.name])) }
                 }
             }
             .listStyle(.inset)
@@ -122,7 +123,7 @@ struct ArtistDetailView: View {
                     }
                     .buttonStyle(AccentButtonStyle())
                     Button {
-                        model.playShuffled(tracks: model.library.tracks(byArtist: name))
+                        model.startMix(MixRule(artists: [name]))
                     } label: {
                         Label("Mezclar", systemImage: "shuffle").font(.system(size: 13))
                     }
@@ -172,7 +173,7 @@ struct GenresView: View {
                         .padding(.vertical, 6)
                     }
                     .contextMenu {
-                        Button("Mezclar canciones") { model.playShuffled(tracks: model.library.tracks(inGenre: genre.name)) }
+                        Button("Mezclar canciones") { model.startMix(MixRule(genres: [genre.name])) }
                     }
                 }
                 .listStyle(.inset)
@@ -193,7 +194,7 @@ struct GenreDetailView: View {
         let tracks = model.library.tracks(inGenre: name)
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: name, subtitle: countLabel(tracks.count, singular: "canción", plural: "canciones")) {
-                ShuffleButton { model.playShuffled(tracks: tracks) }
+                ShuffleButton { model.startMix(MixRule(genres: [name])) }
                     .disabled(tracks.isEmpty)
             }
             .padding(.horizontal, 32)

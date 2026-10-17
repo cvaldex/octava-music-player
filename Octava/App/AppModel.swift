@@ -8,6 +8,7 @@ import Observation
 final class AppModel {
     let database: AppDatabase
     let library: LibraryStore
+    let playlists: PlaylistStore
     let player: PlaybackEngine
 
     private(set) var musicFolder: URL?
@@ -23,20 +24,32 @@ final class AppModel {
         didSet { UserDefaults.standard.set(continueWithMix, forKey: SettingsKey.continueWithMix) }
     }
 
-    /// Tamaño de las mezclas aleatorias (el shuffle inteligente con filtros llega en la fase 3).
-    static let mixSize = 300
+    /// Mezcla activa: mientras exista, la cola se rellena sola para tener siempre
+    /// `MixBuilder.targetLength` canciones por delante, con las mismas reglas.
+    private(set) var activeMix: MixRule? {
+        didSet { saveActiveMix() }
+    }
+
+    /// Muestra la ventana para crear una mezcla con filtros.
+    var showsMixBuilder = false
+
+    /// Canciones ya reproducidas que se conservan en la cola (para "anterior"); las más antiguas se descartan
+    /// para que una mezcla que se rellena durante horas no crezca sin límite.
+    static let queueHistoryLength = 50
 
     @ObservationIgnored private var accessedFolder: URL?
     @ObservationIgnored private var terminationObserver: NSObjectProtocol?
     @ObservationIgnored private var folderWatcher: FolderWatcher?
     @ObservationIgnored private var pendingRescanTask: Task<Void, Never>?
     @ObservationIgnored private var rescanRequestedDuringScan = false
+    @ObservationIgnored private var isRefillingMix = false
 
     private enum SettingsKey {
         static let continueWithMix = "continueWithMix"
         static let repeatMode = "repeatMode"
         static let normalization = "normalization"
         static let volume = "volume"
+        static let activeMix = "activeMix"
     }
 
     init() {
@@ -46,6 +59,7 @@ final class AppModel {
             fatalError("No se pudo abrir la base de datos de Octava: \(error)")
         }
         library = LibraryStore(database: database)
+        playlists = PlaylistStore(database: database)
         player = PlaybackEngine()
 
         let defaults = UserDefaults.standard
@@ -55,6 +69,9 @@ final class AppModel {
         if defaults.object(forKey: SettingsKey.volume) != nil {
             player.setVolume(defaults.float(forKey: SettingsKey.volume))
         }
+        if let data = defaults.data(forKey: SettingsKey.activeMix) {
+            activeMix = try? JSONDecoder().decode(MixRule.self, from: data)
+        }
 
         player.onTrackFinished = { [weak self] track in
             self?.library.markPlayed(track)
@@ -63,6 +80,7 @@ final class AppModel {
             self?.continuationTracks()
         }
         player.onStateChanged = { [weak self] in
+            self?.refillMixIfNeeded()
             self?.savePlaybackState()
         }
         player.artworkProvider = { [weak self] track in
@@ -80,6 +98,7 @@ final class AppModel {
             activate(folder: folder)
         }
         library.reload()
+        playlists.reload()
         restorePlaybackState()
 
         // Escaneo incremental al abrir: solo relee lo nuevo o modificado.
@@ -168,18 +187,22 @@ final class AppModel {
     func play(album: Album, startingAt index: Int = 0) {
         let tracks = library.tracks(for: album)
         guard !tracks.isEmpty else { return }
+        activeMix = nil
         player.play(tracks: tracks, startAt: index, source: .album)
     }
 
-    /// Reproduce una lista de canciones (tablas de canciones, favoritos, género, búsqueda) desde una posición.
+    /// Reproduce una lista de canciones (tablas, listas guardadas, búsqueda) desde una posición.
     func play(tracks: [Track], startingAt index: Int = 0) {
         guard !tracks.isEmpty else { return }
+        activeMix = nil
         player.play(tracks: tracks, startAt: index, source: .mix)
     }
 
+    /// Mezcla fija de un conjunto de canciones (una lista guardada, las más escuchadas), con shuffle inteligente.
     func playShuffled(tracks: [Track]) {
-        let mix = Array(tracks.shuffled().prefix(Self.mixSize))
+        let mix = MixBuilder.build(from: tracks, count: tracks.count)
         guard !mix.isEmpty else { return }
+        activeMix = nil
         player.play(tracks: mix, source: .mix)
     }
 
@@ -187,20 +210,20 @@ final class AppModel {
     func play(artist name: String) {
         let tracks = library.tracks(byArtist: name)
         guard !tracks.isEmpty else { return }
+        activeMix = nil
         player.play(tracks: tracks, source: .album)
     }
 
     func playShuffled(album: Album) {
-        let tracks = library.tracks(for: album).shuffled()
+        let tracks = MixBuilder.spread(library.tracks(for: album).shuffled())
         guard !tracks.isEmpty else { return }
+        activeMix = nil
         player.play(tracks: tracks, source: .mix)
     }
 
-    /// Mezcla básica de la colección. El shuffle inteligente (sin artistas seguidos ni repetidos recientes) es de la fase 3.
+    /// Mezcla de toda la colección (se rellena sola).
     func playShuffledLibrary() {
-        let tracks = Array(library.allTracks().shuffled().prefix(Self.mixSize))
-        guard !tracks.isEmpty else { return }
-        player.play(tracks: tracks, source: .mix)
+        startMix(MixRule())
     }
 
     func playNext(_ tracks: [Track]) {
@@ -217,6 +240,131 @@ final class AppModel {
 
     func addToQueue(album: Album) {
         player.addToQueue(library.tracks(for: album))
+    }
+
+    // MARK: Mezclas
+
+    /// Canciones disponibles para una regla (para mostrar el conteo en la ventana de mezclas).
+    func mixCandidates(for rule: MixRule) -> [Track] {
+        MixBuilder.candidates(for: rule, in: library.tracks, favoriteIDs: library.favoriteIDs)
+    }
+
+    /// Empieza una mezcla que se rellena sola.
+    func startMix(_ rule: MixRule) {
+        let tracks = MixBuilder.build(from: mixCandidates(for: rule), count: MixBuilder.targetLength)
+        guard !tracks.isEmpty else {
+            errorMessage = "No hay canciones que calcen con esa mezcla."
+            return
+        }
+        activeMix = rule
+        player.play(tracks: tracks, source: .mix)
+    }
+
+    /// Deja de rellenar la cola (lo que ya está en la cola se mantiene).
+    func stopMix() {
+        activeMix = nil
+    }
+
+    /// Mantiene `MixBuilder.targetLength` canciones por delante mientras haya una mezcla activa.
+    private func refillMixIfNeeded() {
+        guard let rule = activeMix, !isRefillingMix else { return }
+        isRefillingMix = true
+        defer { isRefillingMix = false }
+
+        player.trimHistory(keeping: Self.queueHistoryLength)
+        let queue = player.queue
+        let missing = MixBuilder.targetLength - queue.upcoming.count
+        guard missing > 0, !queue.isEmpty else { return }
+
+        // No repetir lo que ya está por sonar (ni la actual).
+        var excluded = Set(queue.upcoming.compactMap(\.track.id))
+        if let currentID = queue.current?.id { excluded.insert(currentID) }
+        let previousArtist = queue.upcoming.last?.track.groupingArtist ?? queue.current?.groupingArtist
+        let more = MixBuilder.build(from: mixCandidates(for: rule), count: missing,
+                                    excluding: excluded, previousArtist: previousArtist)
+        if !more.isEmpty {
+            player.addToQueue(more)
+        }
+    }
+
+    private func saveActiveMix() {
+        let defaults = UserDefaults.standard
+        if let activeMix, let data = try? JSONEncoder().encode(activeMix) {
+            defaults.set(data, forKey: SettingsKey.activeMix)
+        } else {
+            defaults.removeObject(forKey: SettingsKey.activeMix)
+        }
+    }
+
+    // MARK: Listas guardadas
+
+    func tracks(inPlaylist id: Int64) -> [Track] {
+        library.tracks(ids: playlists.trackIDs(for: id))
+    }
+
+    /// Crea una lista con un nombre y canciones. Devuelve su id.
+    @discardableResult
+    func createPlaylist(named name: String, tracks: [Track] = []) -> Int64? {
+        playlists.create(name: name, trackIDs: tracks.compactMap(\.id))
+    }
+
+    /// Pide un nombre y crea la lista. Devuelve su id, o nil si se canceló.
+    @discardableResult
+    func createPlaylistPrompting(with tracks: [Track] = [], suggestedName: String = "Nueva lista") -> Int64? {
+        guard let name = TextPrompt.ask(title: "Nueva lista",
+                                        message: tracks.isEmpty ? "Ponle un nombre a la lista." : "Se creará con \(countLabel(tracks.count, singular: "canción", plural: "canciones")).",
+                                        defaultValue: suggestedName,
+                                        confirmTitle: "Crear") else { return nil }
+        return createPlaylist(named: name, tracks: tracks)
+    }
+
+    func addToPlaylist(_ id: Int64, tracks: [Track]) {
+        playlists.append(trackIDs: tracks.compactMap(\.id), to: id)
+    }
+
+    /// Guarda la cola completa (lo que ya sonó en esta sesión, la actual y lo que viene) como lista.
+    @discardableResult
+    func saveQueueAsPlaylist() -> Int64? {
+        let tracks = player.queue.items.map(\.track)
+        guard !tracks.isEmpty else { return nil }
+        let suggested = activeMix?.title ?? player.queue.current.map { "\($0.artist) y más" } ?? "Mi lista"
+        return createPlaylistPrompting(with: tracks, suggestedName: suggested)
+    }
+
+    func renamePlaylistPrompting(_ playlist: Playlist) {
+        guard let name = TextPrompt.ask(title: "Renombrar lista", message: nil,
+                                        defaultValue: playlist.name, confirmTitle: "Renombrar"),
+              let id = playlist.id else { return }
+        playlists.rename(id, to: name)
+    }
+
+    /// Pide confirmación y borra la lista. Devuelve true si se borró.
+    @discardableResult
+    func deletePlaylistConfirming(_ playlist: Playlist) -> Bool {
+        guard let id = playlist.id,
+              TextPrompt.confirm(title: "¿Eliminar la lista “\(playlist.name)”?",
+                                 message: "Las canciones no se borran de tu colección.",
+                                 confirmTitle: "Eliminar") else { return false }
+        playlists.delete(id)
+        return true
+    }
+
+    // MARK: Listas dinámicas
+
+    /// Las 100 canciones con más reproducciones.
+    var mostPlayedTracks: [Track] {
+        Array(library.tracks
+            .filter { $0.playCount > 0 }
+            .sorted { ($0.playCount, $0.lastPlayedAt ?? .distantPast) > ($1.playCount, $1.lastPlayedAt ?? .distantPast) }
+            .prefix(100))
+    }
+
+    /// Canciones no escuchadas en más de 6 meses (o nunca), de la más olvidada a la menos.
+    var forgottenTracks: [Track] {
+        let now = Date()
+        return library.tracks
+            .filter { MixBuilder.isForgotten($0, now: now) }
+            .sorted { ($0.lastPlayedAt ?? .distantPast) < ($1.lastPlayedAt ?? .distantPast) }
     }
 
     // MARK: Ajustes de reproducción
@@ -240,13 +388,17 @@ final class AppModel {
         UserDefaults.standard.set(player.volume, forKey: SettingsKey.volume)
     }
 
-    /// Canciones para seguir cuando termina la cola, si el ajuste está activo.
+    /// Canciones para seguir cuando termina la cola, si el ajuste está activo: empieza una mezcla de toda la
+    /// colección (que se rellena sola), sin el disco que acaba de terminar.
     private func continuationTracks() -> [Track]? {
         guard continueWithMix else { return nil }
         let justPlayedAlbum = player.currentTrack?.albumId
-        let candidates = library.allTracks().filter { $0.albumId == nil || $0.albumId != justPlayedAlbum }
-        let mix = Array(candidates.shuffled().prefix(Self.mixSize))
-        return mix.isEmpty ? nil : mix
+        let candidates = mixCandidates(for: MixRule()).filter { $0.albumId == nil || $0.albumId != justPlayedAlbum }
+        let mix = MixBuilder.build(from: candidates, count: MixBuilder.targetLength,
+                                   previousArtist: player.currentTrack?.groupingArtist)
+        guard !mix.isEmpty else { return nil }
+        activeMix = MixRule()
+        return mix
     }
 
     // MARK: Reanudar al abrir

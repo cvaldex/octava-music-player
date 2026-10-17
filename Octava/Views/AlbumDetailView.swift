@@ -22,7 +22,8 @@ struct AlbumDetailView: View {
                           onAddToQueue: { track in model.addToQueue([track]) },
                           onToggleFavorite: { track in
                               model.library.toggleFavorite(track)
-                          })
+                          },
+                          model: model)
             }
             .padding(.horizontal, 32)
             .padding(.top, 20)
@@ -113,6 +114,8 @@ struct AlbumDetailView: View {
             Menu {
                 Button("Reproducir a continuación") { model.playNext(album: album) }
                 Button("Agregar al final de la cola") { model.addToQueue(album: album) }
+                Divider()
+                AddToPlaylistMenu(tracks: model.library.tracks(for: album), model: model)
             } label: {
                 secondaryLabel("Cola", systemImage: "text.line.first.and.arrowtriangle.forward", compact: compact)
             }
@@ -158,6 +161,8 @@ struct TrackList: View {
     let onPlayNext: (Track) -> Void
     let onAddToQueue: (Track) -> Void
     let onToggleFavorite: (Track) -> Void
+    /// Para el submenú "Agregar a lista" (se pasa explícito; ver nota de TrackTable).
+    let model: AppModel
 
     @State private var selectedID: Int64?
     @FocusState private var isFocused: Bool
@@ -197,6 +202,7 @@ struct TrackList: View {
                         Button("Reproducir desde aquí") { onPlay(index) }
                         Button("Reproducir a continuación") { onPlayNext(track) }
                         Button("Agregar al final de la cola") { onAddToQueue(track) }
+                        AddToPlaylistMenu(tracks: [track], model: model)
                         Divider()
                         Button(track.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos") { onToggleFavorite(track) }
                     }

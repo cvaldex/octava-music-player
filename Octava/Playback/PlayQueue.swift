@@ -162,6 +162,14 @@ struct PlayQueue: Equatable {
         items.replaceSubrange(base..., with: upcoming)
     }
 
+    /// Descarta las canciones ya reproducidas más antiguas, conservando las últimas `keeping` (para "anterior").
+    mutating func trimHistory(keeping: Int) {
+        guard let currentIndex, currentIndex > keeping else { return }
+        let dropCount = currentIndex - keeping
+        items.removeFirst(dropCount)
+        self.currentIndex = currentIndex - dropCount
+    }
+
     mutating func clearUpcoming() {
         guard let currentIndex else { return }
         items.removeSubrange((currentIndex + 1)...)

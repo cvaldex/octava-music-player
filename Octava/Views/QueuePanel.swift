@@ -15,7 +15,22 @@ struct QueuePanel: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Theme.ink)
                 Spacer()
-                Button("Limpiar") { player.clearUpcoming() }
+                Button {
+                    model.saveQueueAsPlaylist()
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(player.queue.isEmpty ? Theme.mutedIcon : Theme.secondaryText)
+                .disabled(player.queue.isEmpty)
+                .help("Guardar la cola como lista")
+                .accessibilityLabel("Guardar la cola como lista")
+                Button("Limpiar") {
+                    // Limpiar también detiene la mezcla: si no, se volvería a rellenar al instante.
+                    model.stopMix()
+                    player.clearUpcoming()
+                }
                     .buttonStyle(.plain)
                     .font(.system(size: 12))
                     .foregroundStyle(upcoming.isEmpty ? Theme.mutedIcon : Theme.secondaryText)
@@ -24,6 +39,34 @@ struct QueuePanel: View {
             .padding(.horizontal, 20)
             .padding(.top, 22)
             .padding(.bottom, 12)
+
+            if let mix = model.activeMix {
+                HStack(spacing: 8) {
+                    Image(systemName: "shuffle")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(mix.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1)
+                        Text("Mezcla · se rellena sola")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.secondaryText)
+                    }
+                    Spacer(minLength: 6)
+                    Button("Detener") { model.stopMix() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.accentText)
+                        .help("Dejar de agregar canciones (lo que está en la cola se mantiene)")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Theme.accentTint, in: RoundedRectangle(cornerRadius: 8))
+                .padding(.horizontal, 14)
+                .padding(.bottom, 14)
+            }
 
             if let current = player.queue.current {
                 VStack(alignment: .leading, spacing: 6) {
@@ -66,6 +109,7 @@ struct QueuePanel: View {
                             .contextMenu {
                                 Button("Reproducir ahora") { player.jump(to: entry.id) }
                                 Button("Quitar de la cola") { player.removeEntry(entry.id) }
+                                AddToPlaylistMenu(tracks: [entry.track], model: model)
                             }
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)

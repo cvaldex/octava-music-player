@@ -50,6 +50,15 @@ struct RootView: View {
             // Al empezar a buscar se vuelve a la raíz para mostrar los resultados.
             if searching { navigator.reset() }
         }
+        .sheet(isPresented: Binding(get: { model.showsMixBuilder }, set: { model.showsMixBuilder = $0 })) {
+            MixBuilderView(model: model)
+        }
+        .onChange(of: model.playlists.playlists) { _, playlists in
+            // Si se borró la lista que estaba abierta, volver a Álbumes.
+            if case .playlist(let id) = selection, !playlists.contains(where: { $0.id == id }) {
+                selection = .albums
+            }
+        }
         .alert("Algo salió mal",
                isPresented: Binding(get: { model.errorMessage != nil },
                                     set: { if !$0 { model.errorMessage = nil } })) {
@@ -96,12 +105,13 @@ struct RootView: View {
                 GenresView()
             case .favorites:
                 FavoritesView()
-            case .mostPlayed, .forgotten:
-                ContentUnavailableView(selection.title,
-                                       systemImage: selection.systemImage,
-                                       description: Text("Las listas inteligentes llegan en la fase 3."))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Theme.surface)
+            case .mostPlayed:
+                MostPlayedView()
+            case .forgotten:
+                ForgottenView()
+            case .playlist(let id):
+                PlaylistView(id: id) { selection = .albums }
+                    .id(id)
             }
         }
     }

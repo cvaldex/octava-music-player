@@ -244,6 +244,11 @@ final class PlaybackEngine {
         queueDidChange()
     }
 
+    /// Descarta historial antiguo de la cola. No afecta a la pista actual ni a la siguiente ya programada.
+    func trimHistory(keeping: Int) {
+        queue.trimHistory(keeping: keeping)
+    }
+
     // MARK: Interno: carga y programación
 
     private func startCurrent(autoplay: Bool, at position: TimeInterval = 0) {

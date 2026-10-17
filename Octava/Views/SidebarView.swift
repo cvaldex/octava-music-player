@@ -1,10 +1,17 @@
 import SwiftUI
 
-enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
+enum SidebarItem: Hashable, Identifiable {
     case albums, artists, songs, genres, favorites
     case mostPlayed, forgotten
+    /// Lista guardada (id en la base de datos).
+    case playlist(Int64)
 
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case .playlist(let id): "playlist-\(id)"
+        default: title
+        }
+    }
 
     var title: String {
         switch self {
@@ -15,6 +22,7 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
         case .favorites: "Favoritos"
         case .mostPlayed: "Más escuchadas"
         case .forgotten: "Hace tiempo sin oír"
+        case .playlist: "Lista"
         }
     }
 
@@ -27,6 +35,7 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
         case .favorites: "heart"
         case .mostPlayed: "chart.bar"
         case .forgotten: "clock.arrow.circlepath"
+        case .playlist: "music.note.list"
         }
     }
 
@@ -39,6 +48,7 @@ struct SidebarView: View {
     @Binding var selection: SidebarItem
 
     var body: some View {
+        let playlists = model.playlists.playlists
         List(selection: Binding<SidebarItem?>(get: { selection }, set: { if let value = $0 { selection = value } })) {
             Section("Biblioteca") {
                 ForEach(SidebarItem.library) { item in
@@ -51,19 +61,38 @@ struct SidebarView: View {
                     Label {
                         Text(item.title)
                     } icon: {
-                        Image(systemName: "shuffle").foregroundStyle(Theme.accent)
+                        Image(systemName: item.systemImage).foregroundStyle(Theme.accent)
                     }
                     .tag(item)
+                    .help("Lista que se actualiza sola")
+                }
+                ForEach(playlists) { playlist in
+                    if let id = playlist.id {
+                        Label(playlist.name, systemImage: "music.note.list")
+                            .lineLimit(1)
+                            .tag(SidebarItem.playlist(id))
+                            .contextMenu {
+                                Button("Reproducir") { model.play(tracks: model.tracks(inPlaylist: id)) }
+                                Button("Mezclar") { model.playShuffled(tracks: model.tracks(inPlaylist: id)) }
+                                Divider()
+                                Button("Renombrar…") { model.renamePlaylistPrompting(playlist) }
+                                Button("Eliminar lista…") {
+                                    if model.deletePlaylistConfirming(playlist), selection == .playlist(id) {
+                                        selection = .albums
+                                    }
+                                }
+                            }
+                    }
                 }
                 Button {
-                    // Fase 3: listas guardadas.
+                    if let id = model.createPlaylistPrompting() {
+                        selection = .playlist(id)
+                    }
                 } label: {
                     Label("Nueva lista", systemImage: "plus")
                         .foregroundStyle(Theme.secondaryText)
                 }
                 .buttonStyle(.plain)
-                .disabled(true)
-                .help("Las listas guardadas llegan en la fase 3")
             }
         }
         .listStyle(.sidebar)

@@ -118,6 +118,7 @@ struct TrackTable: View {
             Button(selected.count == 1 ? "Reproducir" : "Reproducir desde aquí") { play(ids, rows: rows) }
             Button("Reproducir a continuación") { model.playNext(selected) }
             Button("Agregar al final de la cola") { model.addToQueue(selected) }
+            AddToPlaylistMenu(tracks: selected, model: model)
             if selected.count == 1, let track = selected.first {
                 Divider()
                 if let album = model.library.album(id: track.albumId) {

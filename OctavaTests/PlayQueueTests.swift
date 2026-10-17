@@ -333,3 +333,184 @@ final class LibraryIndexTests: XCTestCase {
         XCTAssertTrue(FolderWatcher.isRelevant(paths: ["/m/Disco nuevo"], flags: [FSEventStreamEventFlags(kFSEventStreamEventFlagItemIsDir)]))
     }
 }
+
+// MARK: - Fase 3: mezclas y listas
+
+final class MixBuilderTests: XCTestCase {
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func track(_ id: Int, artist: String = "A", albumId: Int64? = nil, genre: String? = nil,
+                       year: Int? = nil, daysSincePlayed: Double? = nil) -> Track {
+        var track = Track(id: Int64(id), relativePath: "\(id).mp3", fileModifiedAt: Date(), title: "T\(id)",
+                          artist: artist, album: "Disco", year: year, genre: genre, duration: 200,
+                          albumId: albumId ?? Int64(id))
+        track.lastPlayedAt = daysSincePlayed.map { now.addingTimeInterval(-$0 * 24 * 3600) }
+        return track
+    }
+
+    func testRuleFiltersCombine() {
+        let rule = MixRule(genres: ["Metal", "Rock"], decades: [1980])
+        XCTAssertTrue(rule.matchesFilters(track(1, genre: "Metal", year: 1984)))
+        XCTAssertTrue(rule.matchesFilters(track(2, genre: "Rock", year: 1989)))
+        XCTAssertFalse(rule.matchesFilters(track(3, genre: "Metal", year: 1991)))
+        XCTAssertFalse(rule.matchesFilters(track(4, genre: "Pop", year: 1984)))
+        XCTAssertFalse(rule.matchesFilters(track(5, year: 1984)))
+        XCTAssertTrue(MixRule().matchesFilters(track(6)))
+        XCTAssertTrue(MixRule(artists: ["Sabbath"]).matchesFilters(track(7, artist: "Sabbath")))
+        XCTAssertFalse(MixRule(artists: ["Sabbath"]).matchesFilters(track(8, artist: "Dio")))
+    }
+
+    func testRuleTitle() {
+        XCTAssertEqual(MixRule().title, "Toda la colección")
+        XCTAssertEqual(MixRule(genres: ["Metal"], decades: [1980]).title, "Metal · los 80")
+        XCTAssertEqual(MixRule(source: .favorites, artists: ["A", "B", "C", "D"]).title, "Favoritos · A, B y 2 más")
+    }
+
+    func testCandidatesBySource() {
+        let tracks = [track(1, daysSincePlayed: 1), track(2, daysSincePlayed: 400), track(3)]
+        XCTAssertEqual(MixBuilder.candidates(for: MixRule(), in: tracks, favoriteIDs: [], now: now).count, 3)
+        XCTAssertEqual(MixBuilder.candidates(for: MixRule(source: .favorites), in: tracks, favoriteIDs: [1], now: now).map(\.id), [1])
+        XCTAssertEqual(MixBuilder.candidates(for: MixRule(source: .forgotten), in: tracks, favoriteIDs: [], now: now).map(\.id), [2, 3])
+    }
+
+    func testRecentTracksGoLast() {
+        var tracks = (1...20).map { track($0, artist: "Artista \($0)") }
+        tracks.append(track(21, artist: "X", daysSincePlayed: 2))
+        tracks.append(track(22, artist: "Y", daysSincePlayed: 5))
+        let mix = MixBuilder.build(from: tracks, count: 22, now: now)
+        XCTAssertEqual(mix.count, 22)
+        // Las recientes al final, de la menos a la más reciente.
+        XCTAssertEqual(mix.suffix(2).map(\.id), [22, 21])
+    }
+
+    func testRecentOnlyFillWhenNeeded() {
+        var tracks = (1...10).map { track($0, artist: "Artista \($0)") }
+        tracks.append(track(11, daysSincePlayed: 1))
+        let mix = MixBuilder.build(from: tracks, count: 5, now: now)
+        XCTAssertEqual(mix.count, 5)
+        XCTAssertFalse(mix.contains { $0.id == 11 })
+    }
+
+    func testExcludingAndNoDuplicates() {
+        let tracks = (1...10).map { track($0, artist: "Artista \($0)") } + [track(3, artist: "Artista 3")]
+        let mix = MixBuilder.build(from: tracks, count: 100, excluding: [1, 2], now: now)
+        XCTAssertEqual(mix.count, 8)
+        XCTAssertEqual(Set(mix.compactMap(\.id)).count, 8)
+        XCTAssertFalse(mix.contains { $0.id == 1 || $0.id == 2 })
+    }
+
+    func testSpreadAvoidsSameArtistInARow() {
+        // 3 artistas, 6 canciones cada uno, todas juntas.
+        let tracks = (0..<18).map { track($0 + 1, artist: "Artista \($0 / 6)") }
+        let spread = MixBuilder.spread(tracks)
+        XCTAssertEqual(spread.count, 18)
+        for (a, b) in zip(spread, spread.dropFirst()) {
+            XCTAssertNotEqual(a.groupingArtist, b.groupingArtist)
+        }
+    }
+
+    func testSpreadRespectsPreviousArtist() {
+        let tracks = [track(1, artist: "A"), track(2, artist: "B")]
+        XCTAssertEqual(MixBuilder.spread(tracks, previousArtist: "A").first?.id, 2)
+    }
+
+    func testSpreadSingleArtistAlternatesAlbums() {
+        // Un solo artista con dos discos: al menos no repetir disco seguido.
+        let tracks = (1...6).map { track($0, artist: "Solo", albumId: $0 <= 3 ? 100 : 200) }
+        let spread = MixBuilder.spread(tracks)
+        for (a, b) in zip(spread, spread.dropFirst()) {
+            XCTAssertNotEqual(a.albumId, b.albumId)
+        }
+    }
+
+    func testSpreadAcceptsRepeatsWhenUnavoidable() {
+        let tracks = (1...5).map { track($0, artist: "Solo") }
+        XCTAssertEqual(MixBuilder.spread(tracks).count, 5)
+    }
+
+    func testDecades() {
+        let tracks = [track(1, year: 1984), track(2, year: 1989), track(3, year: 2003), track(4), track(5, year: 0)]
+        XCTAssertEqual(MixBuilder.decades(in: tracks), [1980, 2000])
+    }
+}
+
+final class QueueHistoryTests: XCTestCase {
+    private func track(_ n: Int) -> Track {
+        Track(id: Int64(n), relativePath: "\(n).mp3", fileModifiedAt: Date(), title: "\(n)",
+              artist: "A", album: "D", duration: 100)
+    }
+
+    func testTrimHistoryKeepsCurrentAndRecent() {
+        var queue = PlayQueue()
+        queue.replace(with: (1...10).map(track), startAt: 7)
+        queue.trimHistory(keeping: 3)
+        XCTAssertEqual(queue.currentIndex, 3)
+        XCTAssertEqual(queue.current?.id, 8)
+        XCTAssertEqual(queue.items.first?.track.id, 5)
+        XCTAssertEqual(queue.upcoming.count, 2)
+    }
+
+    func testTrimHistoryNoopWhenShort() {
+        var queue = PlayQueue()
+        queue.replace(with: (1...5).map(track), startAt: 2)
+        queue.trimHistory(keeping: 3)
+        XCTAssertEqual(queue.items.count, 5)
+        XCTAssertEqual(queue.currentIndex, 2)
+    }
+}
+
+@MainActor
+final class PlaylistStoreTests: XCTestCase {
+    private func makeStore() throws -> (PlaylistStore, [Int64]) {
+        let database = try AppDatabase.makeEmpty()
+        var ids: [Int64] = []
+        try database.writer.write { db in
+            for n in 1...4 {
+                var track = Track(relativePath: "\(n).mp3", fileModifiedAt: Date(), title: "\(n)",
+                                  artist: "A", album: "D", duration: 100)
+                try track.insert(db)
+                ids.append(track.id!)
+            }
+        }
+        return (PlaylistStore(database: database), ids)
+    }
+
+    func testCreateAppendRenameDelete() throws {
+        let (store, ids) = try makeStore()
+        let id = try XCTUnwrap(store.create(name: "  Viaje  ", trackIDs: [ids[0], ids[1]]))
+        XCTAssertEqual(store.playlists.map(\.name), ["Viaje"])
+        XCTAssertEqual(store.playlists.first?.kind, "generated")
+        XCTAssertEqual(store.trackIDs(for: id), [ids[0], ids[1]])
+
+        store.append(trackIDs: [ids[3], ids[0]], to: id)
+        XCTAssertEqual(store.trackIDs(for: id), [ids[0], ids[1], ids[3], ids[0]])
+
+        store.removeItems(atOffsets: [0], from: id)
+        XCTAssertEqual(store.trackIDs(for: id), [ids[1], ids[3], ids[0]])
+
+        store.moveItems(fromOffsets: [2], toOffset: 0, in: id)
+        XCTAssertEqual(store.trackIDs(for: id), [ids[0], ids[1], ids[3]])
+
+        store.rename(id, to: "Ruta")
+        XCTAssertEqual(store.playlist(id: id)?.name, "Ruta")
+
+        store.delete(id)
+        XCTAssertTrue(store.playlists.isEmpty)
+        XCTAssertTrue(store.trackIDs(for: id).isEmpty)
+    }
+
+    func testEmptyNameAndSorting() throws {
+        let (store, _) = try makeStore()
+        store.create(name: "zeta", trackIDs: [])
+        store.create(name: "   ", trackIDs: [])
+        store.create(name: "Árbol", trackIDs: [])
+        XCTAssertEqual(store.playlists.map(\.name), ["Árbol", "Lista sin nombre", "zeta"])
+        XCTAssertEqual(store.playlists.first?.kind, "manual")
+    }
+
+    func testMovedMatchesOnMove() {
+        XCTAssertEqual(PlaylistStore.moved([1, 2, 3, 4], fromOffsets: [0], toOffset: 3), [2, 3, 1, 4])
+        XCTAssertEqual(PlaylistStore.moved([1, 2, 3, 4], fromOffsets: [3], toOffset: 0), [4, 1, 2, 3])
+        XCTAssertEqual(PlaylistStore.moved([1, 2, 3, 4], fromOffsets: [0, 1], toOffset: 4), [3, 4, 1, 2])
+    }
+}

@@ -24,6 +24,11 @@ struct OctavaApp: App {
                 }
                 .keyboardShortcut("r")
                 .disabled(model.musicFolder == nil || model.isScanning)
+                Divider()
+                Button("Nueva lista…") { model.createPlaylistPrompting() }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                Button("Guardar la cola como lista…") { model.saveQueueAsPlaylist() }
+                    .disabled(model.player.queue.isEmpty)
             }
             CommandMenu("Reproducción") {
                 // Barra espaciadora sin modificadores: pendiente para la fase 6 (debe convivir con el campo de búsqueda).
@@ -36,6 +41,11 @@ struct OctavaApp: App {
                 Divider()
                 Button("Mezcla aleatoria de toda la colección") { model.playShuffledLibrary() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
+                Button("Nueva mezcla con filtros…") { model.showsMixBuilder = true }
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+                    .disabled(model.musicFolder == nil)
+                Button("Detener el relleno de la mezcla") { model.stopMix() }
+                    .disabled(model.activeMix == nil)
                 Divider()
                 Picker("Repetir", selection: Binding(get: { model.player.repeatMode },
                                                      set: { model.setRepeatMode($0) })) {
