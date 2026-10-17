@@ -1,7 +1,8 @@
 #!/bin/bash
 # Ejecutor de compilación para trabajar con Claude a distancia.
 # Se abre con doble clic. Queda esperando: cada vez que aparece build-logs/request,
-# ejecuta el comando pedido (bootstrap | build | test | all) y deja la salida en build-logs/.
+# ejecuta el comando pedido (bootstrap | generate | build | test | all | env | gitstatus | gitcommit | run | kill | sample | script)
+# y deja la salida en build-logs/.
 # Se cierra solo tras 3 horas sin pedidos, o al crear build-logs/stop.
 cd "$(dirname "$0")/.." || exit 1
 ROOT="$(pwd)"
@@ -31,6 +32,13 @@ while true; do
         env)       sw_vers; xcodebuild -version; xcode-select -p; which brew xcodegen git; swift --version ;;
         gitcommit) git add -A && git commit -m "$(cat "$LOGS/commit-message" 2>/dev/null || echo 'Actualiza Octava')" ;;
         gitstatus) git status; git log --oneline -5 ;;
+        run)       pkill -x Octava; sleep 1
+                   APP="$ROOT/build/DerivedData/Build/Products/Debug/Octava.app/Contents/MacOS/Octava"
+                   nohup "$APP" > "$LOGS/app.log" 2>&1 &
+                   echo "app lanzada (pid $!), salida en build-logs/app.log" ;;
+        kill)      pkill -x Octava; echo "app cerrada" ;;
+        sample)    sample Octava 3 -mayDie 2>&1 | head -150 ;;
+        script)    bash "$LOGS/script.sh" ;;
         *) echo "comando desconocido: $CMD" ;;
       esac
       echo "### exit: $?"

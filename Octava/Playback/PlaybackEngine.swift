@@ -63,6 +63,7 @@ final class PlaybackEngine {
     @ObservationIgnored private var consecutiveFailures = 0
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var ticks = 0
+    @ObservationIgnored private var configurationObserver: NSObjectProtocol?
 
     /// Segundos antes del final en que se programa la pista siguiente.
     private static let prescheduleLeadTime: TimeInterval = 10
@@ -89,6 +90,13 @@ final class PlaybackEngine {
             previous: { [weak self] in self?.previous() },
             seek: { [weak self] in self?.seek(to: $0) }
         ))
+
+        // La salida de audio cambió (audífonos, otro dispositivo, cambio de frecuencia): el motor se detiene solo.
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.recoverStoppedEngine() }
+        }
     }
 
     // MARK: Reproducción
@@ -127,18 +135,11 @@ final class PlaybackEngine {
             if queue.current != nil { startCurrent(autoplay: true) }
             return
         }
-        do {
-            if needsSchedule {
-                scheduleCurrentSegment(from: startFrame)
-            }
-            try startEngineIfNeeded()
-            player.play()
-            isPlaying = true
-            startTimer()
-            publishNowPlaying()
-        } catch {
-            lastError = "No se pudo reanudar el audio: \(error.localizedDescription)"
+        if needsSchedule {
+            scheduleCurrentSegment(from: startFrame)
         }
+        guard startPlayer() else { return }
+        publishNowPlaying()
     }
 
     func next() {
@@ -175,7 +176,7 @@ final class PlaybackEngine {
         prescheduled = nil
         if isPlaying {
             scheduleCurrentSegment(from: frame)
-            player.play()
+            startPlayer()
         } else {
             startFrame = frame
             needsSchedule = true
@@ -268,10 +269,7 @@ final class PlaybackEngine {
             let frame = min(max(0, AVAudioFramePosition(position * sampleRate)), max(0, file.length - 1))
             if autoplay {
                 scheduleCurrentSegment(from: frame)
-                try startEngineIfNeeded()
-                player.play()
-                isPlaying = true
-                startTimer()
+                startPlayer()
             } else {
                 startFrame = frame
                 needsSchedule = true
@@ -408,13 +406,59 @@ final class PlaybackEngine {
         onStateChanged?()
     }
 
+    /// Conecta los nodos con el formato del archivo. Si cambia el formato (otra frecuencia de muestreo o canales),
+    /// hay que detener el motor antes: reconectar con el motor encendido lo deja detenido sin aviso.
     private func connect(format: AVAudioFormat) {
         if let connectedFormat, Self.formatsMatch(connectedFormat, format) { return }
+        if engine.isRunning {
+            engine.stop()
+        }
         engine.disconnectNodeOutput(player)
         engine.disconnectNodeOutput(gainUnit)
         engine.connect(player, to: gainUnit, format: format)
         engine.connect(gainUnit, to: engine.mainMixerNode, format: format)
         connectedFormat = format
+        engine.prepare()
+    }
+
+    /// Arranca el reproductor asegurándose de que el motor esté encendido.
+    /// Nunca se llama a `player.play()` con el motor apagado: AVAudioEngine lanza una excepción que cierra la app.
+    @discardableResult
+    private func startPlayer() -> Bool {
+        do {
+            try startEngineIfNeeded()
+        } catch {
+            lastError = "No se pudo iniciar el audio: \(error.localizedDescription)"
+            isPlaying = false
+            stopTimer()
+            publishNowPlaying()
+            return false
+        }
+        player.play()
+        isPlaying = true
+        startTimer()
+        return true
+    }
+
+    /// El motor se detuvo por su cuenta (cambio de salida de audio): reprogramar la pista desde donde iba
+    /// y seguir sonando si estaba sonando.
+    private func recoverStoppedEngine() {
+        guard let file = currentFile else { return }
+        let wasPlaying = isPlaying
+        generation += 1
+        player.stop()
+        prescheduled = nil
+        prescheduleAttemptedSegment = -1
+        isPlaying = false
+        stopTimer()
+        let sampleRate = file.processingFormat.sampleRate
+        startFrame = min(max(0, AVAudioFramePosition(currentTime * sampleRate)), max(0, file.length - 1))
+        needsSchedule = true
+        if wasPlaying {
+            resume()
+        } else {
+            publishNowPlaying()
+        }
     }
 
     private static func formatsMatch(_ a: AVAudioFormat, _ b: AVAudioFormat) -> Bool {
@@ -458,6 +502,11 @@ final class PlaybackEngine {
     }
 
     private func tick() {
+        // Red de seguridad: si el motor se detuvo mientras "sonaba", recuperarlo.
+        if isPlaying && !engine.isRunning {
+            recoverStoppedEngine()
+            return
+        }
         updateCurrentTimeFromPlayer()
         prescheduleNextIfNeeded()
         ticks += 1
