@@ -129,6 +129,8 @@ actor LibraryScanner {
                 track.year = tags.year
                 track.genre = tags.genre
                 track.duration = tags.duration
+                track.replayGainTrack = tags.replayGainTrack
+                track.replayGainAlbum = tags.replayGainAlbum
                 track.albumId = album.id
                 try track.save(db)
 

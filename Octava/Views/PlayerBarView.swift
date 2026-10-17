@@ -3,6 +3,7 @@ import SwiftUI
 /// Barra de reproducción inferior: canción actual, controles, progreso con punto de scrobble y volumen.
 struct PlayerBarView: View {
     @Environment(AppModel.self) private var model
+    @AppStorage("showQueue") private var showQueue = true
 
     var body: some View {
         let player = model.player
@@ -102,13 +103,14 @@ struct PlayerBarView: View {
             .buttonStyle(IconButtonStyle(tint: Theme.ink))
             .accessibilityLabel("Siguiente")
 
-            Button {} label: {
-                Image(systemName: "repeat").font(.system(size: 14, weight: .medium))
+            Button { model.cycleRepeatMode() } label: {
+                Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
+                    .font(.system(size: 14, weight: player.repeatMode == .off ? .medium : .semibold))
             }
-            .buttonStyle(IconButtonStyle())
-            .disabled(true)
-            .help("Repetir llega en la fase 2")
+            .buttonStyle(IconButtonStyle(tint: player.repeatMode == .off ? Theme.secondaryText : Theme.accent))
+            .help(player.repeatMode.title)
             .accessibilityLabel("Repetir")
+            .accessibilityValue(player.repeatMode.title)
         }
     }
 
@@ -131,11 +133,18 @@ struct PlayerBarView: View {
                 .help("El envío a Last.fm llega en la fase 5")
             }
 
+            Button { showQueue.toggle() } label: {
+                Image(systemName: "list.bullet").font(.system(size: 14, weight: .medium))
+            }
+            .buttonStyle(IconButtonStyle(isActive: showQueue))
+            .help(showQueue ? "Ocultar la cola" : "Mostrar la cola")
+            .accessibilityLabel("Cola de reproducción")
+
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.secondaryText)
                 .accessibilityHidden(true)
-            Slider(value: Binding(get: { player.volume }, set: { player.setVolume($0) }), in: 0...1)
+            Slider(value: Binding(get: { player.volume }, set: { model.setVolume($0) }), in: 0...1)
                 .frame(width: 90)
                 .tint(Theme.ink)
                 .accessibilityLabel("Volumen")

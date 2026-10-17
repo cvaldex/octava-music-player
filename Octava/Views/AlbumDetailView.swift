@@ -12,28 +12,23 @@ struct AlbumDetailView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    header
-                    TrackList(tracks: tracks,
-                              currentTrackId: model.player.currentTrack?.id,
-                              onPlay: { index in model.play(album: album, startingAt: index) },
-                              onToggleFavorite: { track in
-                                  model.library.toggleFavorite(track)
-                              })
-                }
-                .padding(.horizontal, 32)
-                .padding(.top, 20)
-                .padding(.bottom, 32)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                header
+                TrackList(tracks: tracks,
+                          currentTrackId: model.player.currentTrack?.id,
+                          onPlay: { index in model.play(album: album, startingAt: index) },
+                          onPlayNext: { track in model.playNext([track]) },
+                          onAddToQueue: { track in model.addToQueue([track]) },
+                          onToggleFavorite: { track in
+                              model.library.toggleFavorite(track)
+                          })
             }
-            .frame(maxWidth: .infinity)
-
-            Divider().overlay(Theme.separator)
-
-            QueuePanel()
-                .frame(width: 280)
+            .padding(.horizontal, 32)
+            .padding(.top, 20)
+            .padding(.bottom, 32)
         }
+        .frame(maxWidth: .infinity)
         .background(Theme.surface)
         .navigationTitle(album.title)
         .task(id: model.library.revision) {
@@ -83,6 +78,21 @@ struct AlbumDetailView: View {
                     }
                     .buttonStyle(OutlineButtonStyle())
 
+                    Menu {
+                        Button("Reproducir a continuación") { model.playNext(album: album) }
+                        Button("Agregar al final de la cola") { model.addToQueue(album: album) }
+                    } label: {
+                        Label("Cola", systemImage: "text.line.first.and.arrowtriangle.forward")
+                            .font(.system(size: 13))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .padding(.horizontal, 16)
+                    .frame(height: 34)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.controlBorder))
+                    .help("Agregar el disco a la cola")
+
                     Button {
                         // Fase 4: editor de tags por lote.
                     } label: {
@@ -104,6 +114,8 @@ struct TrackList: View {
     let tracks: [Track]
     let currentTrackId: Int64?
     let onPlay: (Int) -> Void
+    let onPlayNext: (Track) -> Void
+    let onAddToQueue: (Track) -> Void
     let onToggleFavorite: (Track) -> Void
 
     var body: some View {
@@ -130,6 +142,9 @@ struct TrackList: View {
                     .onTapGesture(count: 2) { onPlay(index) }
                     .contextMenu {
                         Button("Reproducir desde aquí") { onPlay(index) }
+                        Button("Reproducir a continuación") { onPlayNext(track) }
+                        Button("Agregar al final de la cola") { onAddToQueue(track) }
+                        Divider()
                         Button(track.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos") { onToggleFavorite(track) }
                     }
             }
@@ -189,60 +204,5 @@ struct TrackRow: View {
         .frame(height: 40)
         .background(isCurrent ? Theme.accentTint : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
-    }
-}
-
-/// Panel lateral con lo que viene en la cola.
-struct QueuePanel: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let upcoming = Array(model.player.queue.upcoming.prefix(8))
-        let remaining = model.player.queue.upcoming.count - upcoming.count
-
-        VStack(alignment: .leading, spacing: 14) {
-            Text("A continuación")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Theme.ink)
-
-            if upcoming.isEmpty {
-                Text("La cola está vacía. Reproduce un disco o una mezcla aleatoria.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.secondaryText)
-            } else {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(upcoming.enumerated()), id: \.offset) { _, track in
-                        HStack(spacing: 10) {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(track.title)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Theme.ink)
-                                    .lineLimit(1)
-                                Text(track.artist)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(Theme.secondaryText)
-                                    .lineLimit(1)
-                            }
-                            Spacer(minLength: 8)
-                            Text(formatDuration(track.duration))
-                                .font(Theme.mono(11))
-                                .foregroundStyle(Theme.tertiaryText)
-                        }
-                        .padding(.vertical, 6)
-                    }
-                }
-                if remaining > 0 {
-                    Text("y \(remaining) canciones más")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.tertiaryText)
-                }
-            }
-            Spacer()
-            // Fase 2: interruptor "Al terminar el disco, seguir con una mezcla aleatoria" y edición de la cola.
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 24)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(Theme.queuePanel)
     }
 }

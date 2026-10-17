@@ -35,6 +35,13 @@ struct AlbumGridView: View {
                                           isPlaying: album.id != nil && model.player.currentTrack?.albumId == album.id)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Reproducir") { model.play(album: album) }
+                                Button("Reproducir en orden aleatorio") { model.playShuffled(album: album) }
+                                Divider()
+                                Button("Reproducir a continuación") { model.playNext(album: album) }
+                                Button("Agregar al final de la cola") { model.addToQueue(album: album) }
+                            }
                         }
                     }
                 }

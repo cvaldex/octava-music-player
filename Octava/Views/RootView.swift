@@ -5,6 +5,7 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var selection: SidebarItem = .albums
     @State private var path: [Album] = []
+    @AppStorage("showQueue") private var showQueue = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -13,6 +14,10 @@ struct RootView: View {
                     .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
             } detail: {
                 detail
+                    .inspector(isPresented: $showQueue) {
+                        QueuePanel()
+                            .inspectorColumnWidth(min: 240, ideal: 280, max: 380)
+                    }
             }
             Divider().overlay(Theme.separator)
             PlayerBarView()

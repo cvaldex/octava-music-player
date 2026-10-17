@@ -34,6 +34,21 @@ struct OctavaApp: App {
                 Divider()
                 Button("Mezcla aleatoria de toda la colección") { model.playShuffledLibrary() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
+                Divider()
+                Picker("Repetir", selection: Binding(get: { model.player.repeatMode },
+                                                     set: { model.setRepeatMode($0) })) {
+                    ForEach(RepeatMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                Picker("Normalización de volumen", selection: Binding(get: { model.player.normalization },
+                                                                      set: { model.setNormalization($0) })) {
+                    ForEach(NormalizationMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                Toggle("Seguir con una mezcla al terminar la cola",
+                       isOn: Binding(get: { model.continueWithMix }, set: { model.continueWithMix = $0 }))
             }
         }
     }

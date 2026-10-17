@@ -12,6 +12,8 @@ struct TrackTags: Sendable {
     var genre: String?
     var duration: Double = 0
     var artwork: Data?
+    var replayGainTrack: Double?
+    var replayGainAlbum: Double?
 }
 
 /// Lectura de tags ID3 con AVFoundation (solo lectura; la escritura llega en la fase 4 con ID3TagEditor).
@@ -48,7 +50,10 @@ enum TagReader {
             tags.artwork = try? await pictureItem.load(.dataValue)
         }
 
-        // TODO fase 2: leer ReplayGain (frames TXXX "REPLAYGAIN_TRACK_GAIN" / "REPLAYGAIN_ALBUM_GAIN").
+        let userText = ID3UserTextReader.read(url: url)
+        tags.replayGainTrack = ReplayGain.parse(userText["REPLAYGAIN_TRACK_GAIN"])
+        tags.replayGainAlbum = ReplayGain.parse(userText["REPLAYGAIN_ALBUM_GAIN"])
+
         // TODO fase 1: bitrate (AVAssetTrack.estimatedDataRate).
         return tags
     }

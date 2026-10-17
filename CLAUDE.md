@@ -31,9 +31,10 @@ Octava/
   Theme/      Theme (tokens de color y tipografía del diseño claro) · formatDuration
   Models/     Track · Album (registros GRDB, Codable)
   Database/   AppDatabase (GRDB, migraciones)
-  Library/    LibraryScanner (actor) · TagReader · CoverCache · FolderAccess · LibraryStore (lecturas para la UI)
-  Playback/   PlayQueue (lógica pura, testeada) · PlaybackEngine (AVAudioEngine) · scrobbleThreshold
-  Views/      RootView · SidebarView · AlbumGridView · AlbumDetailView · PlayerBarView · AlbumCoverView · WelcomeView · Components
+  Library/    LibraryScanner (actor) · TagReader · ID3UserTextReader (frames TXXX) · CoverCache · FolderAccess · LibraryStore
+  Playback/   PlayQueue (cola con entradas únicas y repetición, testeada) · PlaybackEngine (AVAudioEngine, gapless)
+              ReplayGain (cálculo, testeado) · NowPlayingCenter (Centro de Control, teclas multimedia) · scrobbleThreshold
+  Views/      RootView · SidebarView · AlbumGridView · AlbumDetailView · QueuePanel · PlayerBarView · AlbumCoverView · WelcomeView · Components
   Resources/  Assets.xcassets (AppIcon, AccentColor)
 OctavaTests/  Tests de cola, regla de scrobble, parseo de tags y base de datos
 ```
@@ -67,9 +68,13 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
       15 tests. *Pendiente: que el usuario verifique en Xcode que escanee su colección real y reproduzca un disco.*
 - [ ] **1. Biblioteca** — vigilancia con FSEvents (re-escaneo incremental, debounce), búsqueda por canción, bitrate,
       vistas Artistas / Canciones / Géneros / Favoritos, escaneo inicial rápido con muchas pistas.
-- [ ] **2. Reproducción** — gapless real (programar la siguiente pista antes del final), cola editable (arrastrar, quitar,
-      "reproducir a continuación"), reanudar al abrir (`appState`), ReplayGain, teclas multimedia y Centro de Control
-      (`MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`), repetir, interruptor "seguir con mezcla al terminar el disco".
+- [x] **2. Reproducción** — gapless (la siguiente pista se programa 10 s antes del final si tiene el mismo formato),
+      cola editable (arrastrar, quitar, "reproducir a continuación", "agregar al final", doble clic para saltar) en un
+      panel lateral global (inspector), reanudar al abrir (instantánea en `appState`), ReplayGain leído de frames TXXX
+      (`ID3UserTextReader`, modos desactivada/automática/por canción/por disco con `AVAudioUnitEQ`), teclas multimedia y
+      Centro de Control (`NowPlayingCenter`), repetir (sin repetir/todo/una), "seguir con una mezcla al terminar la cola".
+      Migración `v2` fuerza a releer los tags una vez. *Pendiente de verificar por el usuario en Xcode.*
+      Fuera de esta fase: calcular ReplayGain cuando el MP3 no lo trae (análisis de audio, costoso) → opcional en fase 6.
 - [ ] **3. Listas** — generador con filtros (artista, género, década), shuffle inteligente, listas guardadas y dinámicas.
 - [ ] **4. Edición de tags** — ID3TagEditor, editor individual y por lote según `docs/DESIGN.md`, deshacer, evitar eco de FSEvents.
 - [ ] **5. Last.fm** — autenticación de escritorio, now playing, scrobble (regla en `scrobbleThreshold`), cola offline
@@ -86,9 +91,14 @@ Actualiza esta lista al cerrar cada fase.
   (`library.sqlite` y `Covers/`).
 - Firma "Sign to Run Locally" (`CODE_SIGN_IDENTITY: "-"`): no requiere cuenta de desarrollador. Si macOS pide permisos
   de nuevo tras recompilar, es por la firma ad hoc; elegir la carpeta otra vez lo resuelve.
-- `PlaybackEngine` usa un contador `generation` para ignorar los callbacks de fin de pista provocados por `stop()`/`seek()`.
-  Mantener ese patrón al implementar gapless.
+- `PlaybackEngine`: cada tramo programado en el `AVAudioPlayerNode` tiene un id; el callback de fin solo se atiende si
+  coincide con el tramo actual y con `generation` (que sube en cada stop/seek/cambio de pista). El tiempo actual se calcula
+  con `baseSampleTime` (crece en cada transición gapless) y `startFrame` (desplazamiento tras un salto). Si se edita la cola
+  y la pista ya programada deja de ser la siguiente, se reprograma la actual desde su posición (`queueDidChange`).
+- Ajustes de reproducción (repetir, normalización, volumen, seguir con mezcla) en `UserDefaults`; la cola en `appState`.
+- Al abrir con carpeta configurada se lanza un escaneo incremental automático.
 - `TagReader` toma "Album Artist" del frame TPE2 (`id3MetadataBand`).
 - `tools/build-runner.command`: ejecutor que se abre con doble clic y compila cuando aparece `build-logs/request`
-  (bootstrap | generate | build | test | all | env | gitstatus). Sirve para trabajar a distancia sin escribir en la Terminal;
+  (bootstrap | generate | build | test | all | env | gitstatus | gitcommit). `build-logs/wait.sh <comando>` envía el pedido
+  y espera el resultado. Sirve para trabajar a distancia sin escribir en la Terminal;
   el resultado queda en `build-logs/latest.log` (ignorado por git). Compila con `-derivedDataPath build/DerivedData`.

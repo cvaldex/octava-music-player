@@ -115,6 +115,50 @@ final class AppDatabase: Sendable {
             }
         }
 
+        // Fase 2: el escáner ahora lee ReplayGain. Se marcan todas las pistas como "modificadas"
+        // para que el próximo escaneo vuelva a leer sus tags (las estadísticas se conservan).
+        migrator.registerMigration("v2") { db in
+            try db.execute(sql: "UPDATE track SET fileModifiedAt = ?", arguments: [Date(timeIntervalSince1970: 0)])
+        }
+
         return migrator
+    }
+}
+
+// MARK: - Estado de reproducción (reanudar al abrir)
+
+/// Instantánea de la cola para reanudar donde quedó.
+struct PlaybackSnapshot: Codable, Equatable {
+    var trackIDs: [Int64]
+    var currentIndex: Int
+    var position: Double
+    var source: String
+}
+
+extension AppDatabase {
+    private static let playbackKey = "playback"
+
+    func savePlaybackSnapshot(_ snapshot: PlaybackSnapshot?) {
+        do {
+            try writer.write { db in
+                if let snapshot {
+                    let json = String(decoding: try JSONEncoder().encode(snapshot), as: UTF8.self)
+                    try db.execute(sql: "INSERT OR REPLACE INTO appState (key, value) VALUES (?, ?)",
+                                   arguments: [Self.playbackKey, json])
+                } else {
+                    try db.execute(sql: "DELETE FROM appState WHERE key = ?", arguments: [Self.playbackKey])
+                }
+            }
+        } catch {
+            print("Octava: no se pudo guardar el estado de reproducción: \(error)")
+        }
+    }
+
+    func loadPlaybackSnapshot() -> PlaybackSnapshot? {
+        let json = try? writer.read { db in
+            try String.fetchOne(db, sql: "SELECT value FROM appState WHERE key = ?", arguments: [Self.playbackKey])
+        }
+        guard let json, let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(PlaybackSnapshot.self, from: data)
     }
 }

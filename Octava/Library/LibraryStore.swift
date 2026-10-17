@@ -65,6 +65,16 @@ final class LibraryStore {
         }) ?? []
     }
 
+    /// Pistas por id, en el orden pedido (se omiten las que ya no existen; los ids repetidos se respetan).
+    func tracks(ids: [Int64]) -> [Track] {
+        guard !ids.isEmpty else { return [] }
+        let found = (try? database.writer.read { db in
+            try Track.fetchAll(db, keys: Set(ids))
+        }) ?? []
+        let byID = Dictionary(found.compactMap { track in track.id.map { ($0, track) } }, uniquingKeysWith: { first, _ in first })
+        return ids.compactMap { byID[$0] }
+    }
+
     func allTracks() -> [Track] {
         (try? database.writer.read { db in try Track.fetchAll(db) }) ?? []
     }
