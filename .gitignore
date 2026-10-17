@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Proyecto generado por XcodeGen (la fuente de verdad es project.yml)
+*.xcodeproj/
+*.xcworkspace/
+
+# Compilación
+build/
+DerivedData/
+.swiftpm/
+*.xcresult
+
+# Claude Code: ajustes locales del usuario
+.claude/settings.local.json
+
+# Secretos de Last.fm (fase 5)
+Octava/Config/Secrets.swift
+
+# Logs del ejecutor de compilación
+build-logs/

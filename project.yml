@@ -1,0 +1,87 @@
+# Definición del proyecto para XcodeGen (https://github.com/yonaskolb/XcodeGen).
+# Genera Octava.xcodeproj con:  xcodegen generate   (o ./bootstrap.sh)
+# El .xcodeproj NO se versiona: este archivo es la fuente de verdad.
+
+name: Octava
+
+options:
+  bundleIdPrefix: local.octava
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: es
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "7.0.0"
+  # Fase 4 (edición de tags): descomentar y agregar la dependencia al target.
+  # ID3TagEditor:
+  #   url: https://github.com/chicio/ID3TagEditor
+  #   from: "5.0.0"
+
+targets:
+  Octava:
+    type: application
+    platform: macOS
+    sources:
+      - path: Octava
+    dependencies:
+      - package: GRDB
+    settings:
+      base:
+        PRODUCT_NAME: Octava
+        PRODUCT_BUNDLE_IDENTIFIER: local.octava.Octava
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Octava
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.music
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_ENTITLEMENTS: Octava/Octava.entitlements
+        # "Sign to Run Locally": uso personal, sin cuenta de desarrollador.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+  OctavaTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: OctavaTests
+    dependencies:
+      - target: Octava
+      # Los tests ven el módulo GRDB pero usan el binario ya enlazado en la app (evita símbolos duplicados).
+      - package: GRDB
+        link: false
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: local.octava.OctavaTests
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+
+schemes:
+  Octava:
+    build:
+      targets:
+        Octava: all
+        OctavaTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - OctavaTests
+    archive:
+      config: Release

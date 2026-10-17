@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sandbox de macOS -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Lectura y escritura de la carpeta que el usuario elige (escritura: edición de tags, fase 4) -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- Recordar el permiso de la carpeta entre aperturas (security-scoped bookmark) -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<!-- Conexiones salientes: Last.fm (fase 5) -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>

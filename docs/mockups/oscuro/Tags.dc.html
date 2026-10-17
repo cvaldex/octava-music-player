@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Octava · Editar tags</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0C0E}
+a{color:#FF8A4C}a:hover{color:#FFB08A}
+button{font:inherit;color:inherit;cursor:pointer}
+input::placeholder{color:#8A8D96;font-style:italic}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 900px; box-sizing: border-box; padding: 24px; background: #0B0C0E; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #ECECEE; display: flex; justify-content: center">
+<div style="width: 100%; max-width: 1392px; min-height: 852px; background: #121316; border: 1px solid #2A2C33; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column">
+
+<div style="height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: #17181C; border-bottom: 1px solid #24262C">
+<span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 50%; background: #FF5F57"></span>
+<span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 50%; background: #FEBC2E"></span>
+<span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 50%; background: #28C840"></span>
+<div style="flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: #A1A3AB; padding-right: 52px">Octava</div>
+</div>
+
+<div style="position: relative; flex: 1; display: flex; justify-content: center; padding: 0 24px 40px; box-sizing: border-box">
+<div aria-hidden="true" style="position: absolute; inset: 0; padding: 40px 32px 0 252px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-content: start; gap: 28px 22px; opacity: 0.16; overflow: hidden">
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #2F4858"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #8E3B46"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #3E424B"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #E07A5F"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #1B998B"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #F2C14E"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #5B5F97"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #E4E4E4"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #6A994E"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #BC4749"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #22223B"></div>
+<div style="aspect-ratio: 1 / 1; border-radius: 6px; background: #A7754D"></div>
+</div>
+
+<form role="dialog" aria-labelledby="tags-title" style="position: relative; width: 100%; max-width: 720px; align-self: flex-start; box-sizing: border-box; background: #1C1D22; border: 1px solid #2E3037; border-top: 0; border-radius: 0 0 14px 14px; padding: 24px 28px 22px; display: flex; flex-direction: column; gap: 22px">
+
+<div>
+<h2 id="tags-title" style="margin: 0; font-size: 18px; font-weight: 700">Editar tags</h2>
+<p style="margin: 4px 0 0; font-size: 13px; color: #A1A3AB">11 canciones seleccionadas de <span style="color: #ECECEE">Mareas lentas</span></p>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px">
+<div style="flex: 0 0 148px; display: flex; flex-direction: column; gap: 10px">
+<div aria-hidden="true" style="position: relative; width: 148px; height: 148px; border-radius: 8px; overflow: hidden; background: #2F4858"><div style="position: absolute; left: 20%; top: 20%; width: 60%; height: 60%; border-radius: 50%; background: #F6AE2D"></div></div>
+<button type="button" style="height: 30px; border: 1px solid #34363E; border-radius: 7px; background: transparent; color: #ECECEE; font-size: 12px">Cambiar carátula</button>
+<div style="font-size: 11px; color: #7C7F88; line-height: 1.4">Se incrusta en cada archivo. También puedes arrastrar una imagen.</div>
+</div>
+
+<div style="flex: 1 1 360px; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-content: start">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #A1A3AB">Álbum
+<input type="text" value="Mareas lentas" style="height: 32px; box-sizing: border-box; padding: 0 10px; border: 1px solid #34363E; border-radius: 7px; background: #141519; color: #ECECEE; font: inherit; font-size: 13px">
+</label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #A1A3AB">Artista del álbum
+<input type="text" value="Los Ecos del Puerto" style="height: 32px; box-sizing: border-box; padding: 0 10px; border: 1px solid #34363E; border-radius: 7px; background: #141519; color: #ECECEE; font: inherit; font-size: 13px">
+</label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #A1A3AB">Artista
+<input type="text" value="Los Ecos del Puerto" style="height: 32px; box-sizing: border-box; padding: 0 10px; border: 1px solid #34363E; border-radius: 7px; background: #141519; color: #ECECEE; font: inherit; font-size: 13px">
+</label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #FFB08A"><span style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: #FF8A4C"></span>Año · modificado (antes 1998)</span>
+<input type="text" value="1999" style="height: 32px; box-sizing: border-box; padding: 0 10px; border: 1.5px solid #FF8A4C; border-radius: 7px; background: #141519; color: #ECECEE; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px">
+</label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #A1A3AB">Género
+<input type="text" placeholder="Varios valores · se conservan" style="height: 32px; box-sizing: border-box; padding: 0 10px; border: 1px dashed #3E414A; border-radius: 7px; background: #141519; color: #ECECEE; font: inherit; font-size: 13px">
+</label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #A1A3AB">Disco
+<input type="text" value="1 de 1" style="height: 32px; box-sizing: border-box; padding: 0 10px; border: 1px solid #34363E; border-radius: 7px; background: #141519; color: #ECECEE; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px">
+</label>
+<label style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #7C7F88">Título y número de pista
+<input type="text" disabled placeholder="Distinto en cada canción · se edita una por una" style="height: 32px; box-sizing: border-box; padding: 0 10px; border: 1px solid #2A2C33; border-radius: 7px; background: #18191D; color: #7C7F88; font: inherit; font-size: 13px">
+</label>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding-top: 16px; border-top: 1px solid #2A2C33">
+<div style="display: flex; align-items: flex-start; gap: 8px; flex: 1 1 300px; font-size: 12px; color: #A1A3AB; line-height: 1.45">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A1A3AB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px"><path d="M6 3h9l5 5v13H6zM14 3v6h6M9 14h8M9 18h5"></path></svg>
+<span>Se escribirá el año en <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #ECECEE">11</span> archivos MP3 (ID3v2.4). Puedes deshacerlo desde Edición › Deshacer edición de tags.</span>
+</div>
+<div style="display: flex; gap: 10px">
+<a href="Album.dc.html" style="display: flex; align-items: center; height: 34px; box-sizing: border-box; padding: 0 16px; border: 1px solid #34363E; border-radius: 8px; color: #ECECEE; text-decoration: none; font-size: 13px">Cancelar</a>
+<a href="Album.dc.html" style="display: flex; align-items: center; height: 34px; box-sizing: border-box; padding: 0 18px; border-radius: 8px; background: #FF8A4C; color: #121316; text-decoration: none; font-size: 13px; font-weight: 600">Guardar cambios</a>
+</div>
+</div>
+
+</form>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
