@@ -21,6 +21,8 @@ enum Theme {
     static let queuePanel = Color(hex: 0xFAFAFB)
     static let separator = Color(hex: 0xE3E4E8)
     static let control = Color(hex: 0xE1E2E7)
+    /// Fila seleccionada en listas.
+    static let selection = Color(hex: 0xE6E9F0)
     static let controlBorder = Color(hex: 0xCFD1D6)
     static let mutedIcon = Color(hex: 0xA3A6AD)
 

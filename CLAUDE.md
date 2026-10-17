@@ -103,6 +103,13 @@ Actualiza esta lista al cerrar cada fase.
 - Cerrar la ventana (X o ⌘W) cierra la app previa confirmación (`AppDelegate.applicationShouldTerminate`);
   `WindowCloseConfirmation` intercepta el cierre con un delegado intermedio que reenvía el resto al de SwiftUI.
   "No volver a preguntar" se guarda en `UserDefaults` (`skipQuitConfirmation`).
+- El panel de la cola es una columna de la ventana, **fuera** del `NavigationSplitView` (dentro, la navegación lo
+  reemplazaba). No usar `.inspector` para él.
+- Carátulas: `AlbumCoverView` es siempre cuadrada (cuadrado vacío + imagen `scaledToFill` superpuesta y recortada).
+- Detalle de disco: encabezado adaptable con `ViewThatFits`; lista de canciones con selección (clic), doble clic o
+  Enter para reproducir, ↑/↓ para moverse.
+- Ojo: al copiar al Mac con la herramienta de archivos, verificar con md5; una segunda copia del mismo archivo a veces no
+  se aplica.
 - No usar `withAnimation(.repeatForever)` en vistas: la animación infinita se contagia a los cambios de diseño vecinos
   (la cola crecía y se achicaba). Las animaciones continuas van con `TimelineView` (ver `PlayingBars`).
 - Ajustes de reproducción (repetir, normalización, volumen, seguir con mezcla) en `UserDefaults`; la cola en `appState`.

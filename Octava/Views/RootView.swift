@@ -9,16 +9,28 @@ struct RootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NavigationSplitView {
-                SidebarView(selection: $selection)
-                    .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
-            } detail: {
-                detail
-                    .inspector(isPresented: $showQueue) {
-                        QueuePanel()
-                            .inspectorColumnWidth(min: 240, ideal: 280, max: 380)
-                    }
+            // El panel de la cola es una columna propia de la ventana, fuera del NavigationSplitView:
+            // dentro de él, la navegación (entrar a un disco) reemplazaba la columna completa y el panel desaparecía.
+            HStack(spacing: 0) {
+                NavigationSplitView {
+                    SidebarView(selection: $selection)
+                        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+                } detail: {
+                    // minWidth 0 + clipped: el contenido nunca empuja el panel de la cola fuera de la ventana.
+                    detail
+                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                }
+                .frame(minWidth: 0, maxWidth: .infinity)
+
+                if showQueue {
+                    Divider().overlay(Theme.separator)
+                    QueuePanel()
+                        .frame(width: 280)
+                        .transition(.move(edge: .trailing))
+                }
             }
+            .animation(.easeInOut(duration: 0.2), value: showQueue)
             Divider().overlay(Theme.separator)
             PlayerBarView()
         }

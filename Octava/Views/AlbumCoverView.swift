@@ -9,17 +9,22 @@ struct AlbumCoverView: View {
     @State private var image: NSImage?
 
     var body: some View {
-        ZStack {
-            if let image {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                PlaceholderCover(seed: album.title + album.albumArtist)
+        // Siempre cuadrada: el marco lo define un cuadrado vacío y la imagen se superpone rellenándolo.
+        // Una carátula más ancha que alta se recorta por igual a izquierda y derecha (y una más alta, arriba y abajo).
+        // La imagen no participa del cálculo de tamaño, así que nunca ensancha la celda de la grilla.
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                if let image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    PlaceholderCover(seed: album.title + album.albumArtist)
+                }
             }
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
         .task(id: album.coverCachePath) {
             image = await CoverImageLoader.shared.image(at: album.coverCachePath)
         }
