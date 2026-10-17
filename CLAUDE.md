@@ -95,6 +95,11 @@ Actualiza esta lista al cerrar cada fase.
   coincide con el tramo actual y con `generation` (que sube en cada stop/seek/cambio de pista). El tiempo actual se calcula
   con `baseSampleTime` (crece en cada transición gapless) y `startFrame` (desplazamiento tras un salto). Si se edita la cola
   y la pista ya programada deja de ser la siguiente, se reprograma la actual desde su posición (`queueDidChange`).
+- AVAudioEngine: **nunca** reconectar nodos con el motor encendido (queda detenido sin aviso) ni llamar a
+  `player.play()` directamente (con el motor apagado lanza una excepción que cierra la app). Usar `connect(format:)` y
+  `startPlayer()`. Si el motor se detiene solo (cambio de salida de audio), `recoverStoppedEngine()` reprograma la pista.
+- Para probar en la app sin Xcode: `build-logs/wait.sh run` la lanza con su salida en `build-logs/app.log`; `sample`
+  toma una muestra del proceso (útil si se cuelga). Los crash bajo Xcode no dejan reporte en DiagnosticReports.
 - Ajustes de reproducción (repetir, normalización, volumen, seguir con mezcla) en `UserDefaults`; la cola en `appState`.
 - Al abrir con carpeta configurada se lanza un escaneo incremental automático.
 - `TagReader` toma "Album Artist" del frame TPE2 (`id3MetadataBand`).
