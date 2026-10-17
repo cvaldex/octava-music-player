@@ -2,12 +2,14 @@ import SwiftUI
 
 @main
 struct OctavaApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(model)
+                .background(WindowCloseConfirmation())
                 // Tema claro elegido en el diseño. El oscuro queda para más adelante (ver docs/DESIGN.md).
                 .preferredColorScheme(.light)
                 .frame(minWidth: 980, minHeight: 620)

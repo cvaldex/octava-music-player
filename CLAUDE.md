@@ -100,6 +100,11 @@ Actualiza esta lista al cerrar cada fase.
   `startPlayer()`. Si el motor se detiene solo (cambio de salida de audio), `recoverStoppedEngine()` reprograma la pista.
 - Para probar en la app sin Xcode: `build-logs/wait.sh run` la lanza con su salida en `build-logs/app.log`; `sample`
   toma una muestra del proceso (útil si se cuelga). Los crash bajo Xcode no dejan reporte en DiagnosticReports.
+- Cerrar la ventana (X o ⌘W) cierra la app previa confirmación (`AppDelegate.applicationShouldTerminate`);
+  `WindowCloseConfirmation` intercepta el cierre con un delegado intermedio que reenvía el resto al de SwiftUI.
+  "No volver a preguntar" se guarda en `UserDefaults` (`skipQuitConfirmation`).
+- No usar `withAnimation(.repeatForever)` en vistas: la animación infinita se contagia a los cambios de diseño vecinos
+  (la cola crecía y se achicaba). Las animaciones continuas van con `TimelineView` (ver `PlayingBars`).
 - Ajustes de reproducción (repetir, normalización, volumen, seguir con mezcla) en `UserDefaults`; la cola en `appState`.
 - Al abrir con carpeta configurada se lanza un escaneo incremental automático.
 - `TagReader` toma "Album Artist" del frame TPE2 (`id3MetadataBand`).

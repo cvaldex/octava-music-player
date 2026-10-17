@@ -45,28 +45,35 @@ struct IconButtonStyle: ButtonStyle {
 }
 
 /// Indicador animado de "sonando" (tres barras).
+/// Se dibuja cuadro a cuadro con TimelineView en vez de `withAnimation(.repeatForever)`: esa animación infinita
+/// se "contagia" a los cambios de diseño de las vistas vecinas (la lista de la cola crecía y se achicaba sin parar).
 struct PlayingBars: View {
     var color: Color = Theme.accent
     var animating = true
-    @State private var phase = false
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            bar(low: 0.45, high: 0.9)
-            bar(low: 0.9, high: 0.35)
-            bar(low: 0.3, high: 0.7)
+        TimelineView(.animation(minimumInterval: 1.0 / 24, paused: !animating)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .bottom, spacing: 2) {
+                bar(level(t, speed: 6.3, offset: 0.0, rest: 0.45))
+                bar(level(t, speed: 4.9, offset: 1.9, rest: 0.9))
+                bar(level(t, speed: 5.7, offset: 3.4, rest: 0.6))
+            }
+            .frame(width: 12, height: 12, alignment: .bottom)
         }
         .frame(width: 12, height: 12)
-        .onAppear {
-            guard animating else { return }
-            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) { phase.toggle() }
-        }
+        .accessibilityElement()
         .accessibilityLabel("Sonando")
     }
 
-    private func bar(low: CGFloat, high: CGFloat) -> some View {
+    private func level(_ t: TimeInterval, speed: Double, offset: Double, rest: CGFloat) -> CGFloat {
+        guard animating else { return rest }
+        return 0.3 + 0.7 * CGFloat(0.5 + 0.5 * sin(t * speed + offset))
+    }
+
+    private func bar(_ level: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 1)
             .fill(color)
-            .frame(width: 2.5, height: 12 * (phase && animating ? high : low))
+            .frame(width: 2.5, height: 12 * level)
     }
 }
