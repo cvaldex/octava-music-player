@@ -109,7 +109,7 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
       no se toca la biblioteca y aparece un aviso (re-escaneo al montar/desmontar volúmenes); faltan > 20 canciones y
       > 25 % → no se quitan sin confirmación (`withheldMissing`); archivos movidos o renombrados se reconocen por
       título + artista + duración y conservan estadísticas; canción que no abre → aviso flotante y salta.
-      El cambio de salida de audio ya lo recupera `recoverStoppedEngine` (fase 2). *Pendiente: modo oscuro (opcional).*
+      El cambio de salida de audio ya lo recupera `recoverStoppedEngine` (fase 2). *Modo oscuro: postergado por decisión del usuario (el diseño está en `docs/mockups/oscuro`).*
 - [ ] **7. Uso diario** — build Release y copia a /Applications.
 
 Actualiza esta lista al cerrar cada fase.
