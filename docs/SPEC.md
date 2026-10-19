@@ -20,7 +20,7 @@ App nativa para macOS que administra una colección de MP3 alojada en una carpet
 | Proyecto de Xcode | XcodeGen (`project.yml`) | El proyecto se genera desde un archivo de texto legible y versionable |
 | Reproducción | AVFoundation (`AVAudioEngine` + `AVAudioPlayerNode`) | Suficiente para MP3; permite encolar la pista siguiente para gapless |
 | Lectura de tags | AVFoundation (`AVURLAsset` + metadata) | Lee ID3v2 y carátulas incrustadas |
-| Escritura de tags | [ID3TagEditor](https://github.com/chicio/ID3TagEditor) | Swift puro, lee y escribe ID3v2.3 y v2.4; AVFoundation no escribe tags MP3 |
+| Escritura de tags | `ID3TagWriter` propio (Swift) | Reemplaza solo los frames editados y conserva el resto byte a byte (ReplayGain, comentarios); AVFoundation no escribe tags MP3. ID3TagEditor se descartó en la fase 4 |
 | Base de datos | SQLite con [GRDB](https://github.com/groue/GRDB.swift) | Rápida, con migraciones y observación de cambios |
 | Vigilancia de la carpeta | FSEvents | Detecta archivos nuevos, borrados o modificados sin re-escanear todo |
 | Integración con el sistema | `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` | Teclas multimedia y Centro de Control |
@@ -123,7 +123,7 @@ El archivo MP3 es la fuente de verdad: primero se escribe el archivo y, solo si 
 4. **Evitar el eco**: la app registra los archivos que está modificando, para que FSEvents no dispare un re-escaneo duplicado.
 5. **Permisos**: la carpeta se elige con acceso de lectura y escritura (entitlement `files.user-selected.read-write`) y se guarda como security-scoped bookmark.
 6. **Canción en reproducción**: se puede editar sin cortar el audio.
-7. **Versión de ID3**: se escribe ID3v2.4 (o v2.3 si se prefiere máxima compatibilidad con otros programas).
+7. **Versión de ID3**: se conserva la versión que trae el archivo (v2.3 o v2.4); un archivo sin etiqueta recibe v2.4.
 8. **Last.fm**: editar un tag no modifica scrobbles ya enviados; la API de Last.fm no permite editarlos.
 
 Probar el editor primero sobre una copia de algunos discos.

@@ -177,3 +177,67 @@ extension AppDatabase {
         return try? JSONDecoder().decode(PlaybackSnapshot.self, from: data)
     }
 }
+
+// MARK: - Edición de tags (historial para deshacer)
+
+/// Una edición guardada: la canción y los valores que tenía antes.
+struct TagEditRecord: Sendable {
+    var id: Int64
+    var trackId: Int64
+    var previous: TagChanges
+}
+
+extension AppDatabase {
+    /// Guarda los valores anteriores de un lote de ediciones. Todas comparten `editedAt`: así se deshacen juntas.
+    func recordTagEdits(_ edits: [(trackId: Int64, previous: TagChanges)], at date: Date) throws {
+        try writer.write { db in
+            for edit in edits {
+                let json = String(decoding: try JSONEncoder().encode(edit.previous), as: UTF8.self)
+                try db.execute(sql: "INSERT INTO tagEditHistory (trackId, previousTags, editedAt) VALUES (?, ?, ?)",
+                               arguments: [edit.trackId, json, date])
+            }
+        }
+    }
+
+    /// El último lote de ediciones (el que deshace "Deshacer edición de tags").
+    func latestTagEditBatch() -> [TagEditRecord] {
+        (try? writer.read { db -> [TagEditRecord] in
+            guard let latest = try Date.fetchOne(db, sql: "SELECT MAX(editedAt) FROM tagEditHistory") else { return [] }
+            let rows = try Row.fetchAll(db, sql: "SELECT id, trackId, previousTags FROM tagEditHistory WHERE editedAt = ?",
+                                        arguments: [latest])
+            return rows.compactMap { row in
+                let json: String = row["previousTags"]
+                guard let previous = try? JSONDecoder().decode(TagChanges.self, from: Data(json.utf8)) else { return nil }
+                return TagEditRecord(id: row["id"], trackId: row["trackId"], previous: previous)
+            }
+        }) ?? []
+    }
+
+    func deleteTagEdits(_ ids: [Int64]) throws {
+        try writer.write { db in
+            for id in ids {
+                try db.execute(sql: "DELETE FROM tagEditHistory WHERE id = ?", arguments: [id])
+            }
+        }
+    }
+
+    var hasTagEdits: Bool {
+        let count = try? writer.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM tagEditHistory") ?? 0 }
+        return (count ?? 0) > 0
+    }
+
+    /// Marca canciones para que el próximo escaneo vuelva a leer sus tags (conserva las estadísticas).
+    /// Si cambió la carátula, también se descarta la miniatura de sus discos.
+    func markForReread(trackIDs: [Int64], clearingCovers: Bool) throws {
+        try writer.write { db in
+            for id in trackIDs {
+                try db.execute(sql: "UPDATE track SET fileModifiedAt = ? WHERE id = ?",
+                               arguments: [Date(timeIntervalSince1970: 0), id])
+                if clearingCovers {
+                    try db.execute(sql: "UPDATE album SET coverCachePath = NULL WHERE id = (SELECT albumId FROM track WHERE id = ?)",
+                                   arguments: [id])
+                }
+            }
+        }
+    }
+}

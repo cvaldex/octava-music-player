@@ -33,6 +33,13 @@ final class AppModel {
     /// Muestra la ventana para crear una mezcla con filtros.
     var showsMixBuilder = false
 
+    /// Canciones abiertas en el editor de tags (la hoja se muestra mientras exista).
+    var tagEditTarget: TagEditTarget?
+    /// Se están escribiendo tags (o deshaciendo una edición).
+    private(set) var isSavingTags = false
+    /// Hay una edición de tags que se puede deshacer.
+    private(set) var canUndoTagEdit = false
+
     /// Canciones ya reproducidas que se conservan en la cola (para "anterior"); las más antiguas se descartan
     /// para que una mezcla que se rellena durante horas no crezca sin límite.
     static let queueHistoryLength = 50
@@ -99,6 +106,7 @@ final class AppModel {
         }
         library.reload()
         playlists.reload()
+        canUndoTagEdit = database.hasTagEdits
         restorePlaybackState()
 
         // Escaneo incremental al abrir: solo relee lo nuevo o modificado.
@@ -167,6 +175,9 @@ final class AppModel {
             }
             if summary.added + summary.updated + summary.removed > 0 || library.albums.isEmpty {
                 library.reload()
+                // Los datos de la cola (títulos, discos) se actualizan sin cortar el audio.
+                let library = self.library
+                player.refreshTracks { library.tracks(ids: [$0]).first }
             }
         } catch {
             errorMessage = "No se pudo escanear la carpeta: \(error.localizedDescription)"
@@ -349,6 +360,124 @@ final class AppModel {
         return true
     }
 
+    // MARK: Edición de tags
+
+    /// Abre el editor de tags con estas canciones.
+    func editTags(_ tracks: [Track]) {
+        let tracks = tracks.filter { $0.id != nil }
+        guard !tracks.isEmpty, musicFolder != nil else { return }
+        tagEditTarget = TagEditTarget(tracks: tracks)
+    }
+
+    func editTags(album: Album) {
+        editTags(library.tracks(for: album))
+    }
+
+    /// Escribe los cambios en los MP3 y, si funciona, actualiza la base (relee esos archivos).
+    /// Devuelve false si algún archivo no se pudo escribir (el mensaje queda en `errorMessage`).
+    @discardableResult
+    func saveTagEdit(_ changes: TagChanges, to tracks: [Track]) async -> Bool {
+        guard !changes.isEmpty, !isSavingTags else { return true }
+        let jobs = fileJobs(for: tracks).map { ($0.trackID, $0.url, changes) }
+        let result = await writeTags(jobs)
+
+        if !result.done.isEmpty {
+            do {
+                try database.recordTagEdits(result.done.map { ($0.trackID, $0.previous) }, at: Date())
+            } catch {
+                print("Octava: no se pudo guardar el historial de tags: \(error)")
+            }
+            canUndoTagEdit = database.hasTagEdits
+            await reread(trackIDs: result.done.map(\.trackID), coverChanged: changes.artwork != nil)
+        }
+        return report(failures: result.failed, total: jobs.count)
+    }
+
+    /// Pide confirmación y deshace el último lote de ediciones.
+    func undoLastTagEditConfirming() async {
+        let count = database.latestTagEditBatch().count
+        guard count > 0 else {
+            canUndoTagEdit = false
+            return
+        }
+        guard TextPrompt.confirm(title: "¿Deshacer la última edición de tags?",
+                                 message: "Se volverán a escribir los valores anteriores en \(countLabel(count, singular: "archivo MP3", plural: "archivos MP3")).",
+                                 confirmTitle: "Deshacer") else { return }
+        await undoLastTagEdit()
+    }
+
+    /// Deshace el último lote de ediciones: vuelve a escribir los valores anteriores.
+    func undoLastTagEdit() async {
+        guard !isSavingTags else { return }
+        let batch = database.latestTagEditBatch()
+        guard !batch.isEmpty else {
+            canUndoTagEdit = false
+            return
+        }
+        let byTrack = Dictionary(batch.map { ($0.trackId, $0.previous) }, uniquingKeysWith: { first, _ in first })
+        let tracks = library.tracks(ids: batch.map(\.trackId))
+        let jobs = fileJobs(for: tracks).compactMap { job in byTrack[job.trackID].map { (job.trackID, job.url, $0) } }
+        let result = await writeTags(jobs)
+
+        // Se borra del historial lo que se deshizo (y lo que ya no existe en la colección).
+        let undone = Set(result.done.map(\.trackID))
+        let missing = Set(batch.map(\.trackId)).subtracting(tracks.compactMap(\.id))
+        try? database.deleteTagEdits(batch.filter { undone.contains($0.trackId) || missing.contains($0.trackId) }.map(\.id))
+        canUndoTagEdit = database.hasTagEdits
+
+        if !result.done.isEmpty {
+            let coverChanged = batch.contains { $0.previous.artwork != nil }
+            await reread(trackIDs: Array(undone), coverChanged: coverChanged)
+        }
+        report(failures: result.failed, total: jobs.count)
+    }
+
+    private func fileJobs(for tracks: [Track]) -> [(trackID: Int64, url: URL)] {
+        guard let root = musicFolder else { return [] }
+        return tracks.compactMap { track in
+            track.id.map { ($0, root.appendingPathComponent(track.relativePath)) }
+        }
+    }
+
+    /// Escribe en segundo plano (un disco son decenas de MB). Cada archivo es independiente: si uno falla, los demás siguen.
+    private func writeTags(_ jobs: [(Int64, URL, TagChanges)]) async
+        -> (done: [(trackID: Int64, previous: TagChanges)], failed: [String]) {
+        isSavingTags = true
+        defer { isSavingTags = false }
+        return await Task.detached(priority: .userInitiated) {
+            var done: [(trackID: Int64, previous: TagChanges)] = []
+            var failed: [String] = []
+            for (trackID, url, changes) in jobs {
+                do {
+                    let previous = try ID3TagWriter.apply(changes, toFileAt: url)
+                    done.append((trackID, previous))
+                } catch {
+                    failed.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                }
+            }
+            return (done, failed)
+        }.value
+    }
+
+    /// Hace que el escáner relea esos archivos: así se reagrupan los discos y se actualizan carátulas y años.
+    private func reread(trackIDs: [Int64], coverChanged: Bool) async {
+        do {
+            try database.markForReread(trackIDs: trackIDs, clearingCovers: coverChanged)
+        } catch {
+            print("Octava: no se pudo marcar para releer: \(error)")
+        }
+        await rescan()
+    }
+
+    @discardableResult
+    private func report(failures: [String], total: Int) -> Bool {
+        guard !failures.isEmpty else { return true }
+        let list = failures.prefix(5).joined(separator: "\n")
+        let more = failures.count > 5 ? "\n… y \(failures.count - 5) más." : ""
+        errorMessage = "No se pudieron escribir \(failures.count) de \(total) archivos:\n\(list)\(more)"
+        return false
+    }
+
     // MARK: Listas dinámicas
 
     /// Las 100 canciones con más reproducciones.
@@ -438,4 +567,10 @@ final class AppModel {
                        position: position,
                        source: QueueSource(rawValue: snapshot.source) ?? .mix)
     }
+}
+
+/// Canciones abiertas en el editor de tags.
+struct TagEditTarget: Identifiable {
+    let id = UUID()
+    let tracks: [Track]
 }

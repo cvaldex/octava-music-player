@@ -22,10 +22,8 @@ packages:
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "7.0.0"
-  # Fase 4 (edición de tags): descomentar y agregar la dependencia al target.
-  # ID3TagEditor:
-  #   url: https://github.com/chicio/ID3TagEditor
-  #   from: "5.0.0"
+  # Fase 4: los tags se escriben con código propio (Octava/Library/ID3TagWriter.swift) en vez de ID3TagEditor,
+  # para conservar byte a byte los frames que no se editan (ReplayGain en TXXX, comentarios, letras).
 
 targets:
   Octava:

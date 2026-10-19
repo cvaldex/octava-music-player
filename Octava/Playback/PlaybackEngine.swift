@@ -289,6 +289,13 @@ final class PlaybackEngine {
         queueDidChange()
     }
 
+    /// Actualiza los datos de las canciones de la cola (títulos, carátula…) sin cortar el audio.
+    func refreshTracks(_ lookup: (Int64) -> Track?) {
+        if queue.refreshTracks(lookup) {
+            publishNowPlaying()
+        }
+    }
+
     /// Descarta historial antiguo de la cola. No afecta a la pista actual ni a la siguiente ya programada.
     func trimHistory(keeping: Int) {
         queue.trimHistory(keeping: keeping)

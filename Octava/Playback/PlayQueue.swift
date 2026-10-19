@@ -3,7 +3,7 @@ import Foundation
 /// Una entrada de la cola. La misma canción puede aparecer varias veces, por eso cada entrada tiene su propio id.
 struct QueueEntry: Identifiable, Equatable {
     let id: UUID
-    let track: Track
+    var track: Track
 
     init(track: Track) {
         self.id = UUID()
@@ -168,6 +168,19 @@ struct PlayQueue: Equatable {
         let dropCount = currentIndex - keeping
         items.removeFirst(dropCount)
         self.currentIndex = currentIndex - dropCount
+    }
+
+    /// Actualiza los datos de las canciones (tras editar tags o re-escanear), sin cambiar el orden ni las entradas.
+    /// Devuelve true si cambió algo.
+    @discardableResult
+    mutating func refreshTracks(_ lookup: (Int64) -> Track?) -> Bool {
+        var changed = false
+        for index in items.indices {
+            guard let id = items[index].track.id, let fresh = lookup(id), fresh != items[index].track else { continue }
+            items[index].track = fresh
+            changed = true
+        }
+        return changed
     }
 
     mutating func clearUpcoming() {

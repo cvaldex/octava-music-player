@@ -30,6 +30,14 @@ struct OctavaApp: App {
                 Button("Guardar la cola como lista…") { model.saveQueueAsPlaylist() }
                     .disabled(model.player.queue.isEmpty)
             }
+            CommandGroup(after: .undoRedo) {
+                Divider()
+                Button("Deshacer edición de tags") {
+                    Task { await model.undoLastTagEditConfirming() }
+                }
+                .keyboardShortcut("z", modifiers: [.command, .option])
+                .disabled(!model.canUndoTagEdit || model.isSavingTags)
+            }
             CommandMenu("Reproducción") {
                 // Barra espaciadora sin modificadores: pendiente para la fase 6 (debe convivir con el campo de búsqueda).
                 Button(model.player.isPlaying ? "Pausar" : "Reproducir") { model.player.togglePlayPause() }

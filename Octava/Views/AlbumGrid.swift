@@ -41,6 +41,8 @@ struct AlbumContextMenu: View {
         Button("Reproducir a continuación") { model.playNext(album: album) }
         Button("Agregar al final de la cola") { model.addToQueue(album: album) }
         AddToPlaylistMenu(tracks: model.library.tracks(for: album), model: model)
+        Divider()
+        Button("Editar tags…") { model.editTags(album: album) }
         if showsArtistLink {
             Divider()
             Button("Ir al artista") { navigator.show(.artist(album.albumArtist)) }

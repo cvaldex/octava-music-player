@@ -32,7 +32,8 @@ enum CoverCache {
         ]
         guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
 
-        let url = try folder().appendingPathComponent("\(albumId).jpg")
+        // Nombre único: al cambiar la carátula cambia la ruta, y la vista (que guarda las imágenes por ruta) la recarga.
+        let url = try folder().appendingPathComponent("\(albumId)-\(UUID().uuidString.prefix(8)).jpg")
         guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
         CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { return nil }

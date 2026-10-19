@@ -60,7 +60,7 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
   el usuario confirma en el editor (fase 4). Para probar la escritura de tags, usa copias.
 - **Secretos**: la API key y el secret de Last.fm no se versionan. Fase 5: crear `Octava/Config/Secrets.swift`
   (en `.gitignore`) a partir de un `Secrets.example.swift` versionado; la session key va al Keychain.
-- Sin dependencias nuevas sin motivo. Aprobadas: GRDB (en uso) e ID3TagEditor (fase 4, ya comentada en `project.yml`).
+- Sin dependencias nuevas sin motivo. En uso: GRDB. ID3TagEditor quedó descartada (ver fase 4).
 - Commits pequeños, uno por avance funcional, mensaje en español en imperativo ("Agrega búsqueda por canción").
 
 ## Estado de las fases
@@ -89,7 +89,13 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
       Listas guardadas (`PlaylistStore`, tablas `playlist`/`playlistItem`): "Nueva lista", "Agregar a lista" en todos los
       menús, "Guardar la cola como lista", reordenar/quitar, renombrar/eliminar. Dinámicas: Más escuchadas (top 100) y
       Hace tiempo sin oír (6 meses o nunca). *Pendiente de verificar por el usuario en Xcode.*
-- [ ] **4. Edición de tags** — ID3TagEditor, editor individual y por lote según `docs/DESIGN.md`, deshacer, evitar eco de FSEvents.
+- [x] **4. Edición de tags** — escritor propio `ID3TagWriter` (no ID3TagEditor: solo reemplaza los frames editados y
+      copia el resto byte a byte, incluido ReplayGain; conserva v2.3/v2.4, actualiza ID3v1, temporal + reemplazo atómico
+      con verificación previa). Editor individual y por lote (`TagEditorView`, hoja según `docs/DESIGN.md`), carátula
+      por diálogo o arrastre, Edición › Deshacer edición de tags (⌥⌘Z, último lote en `tagEditHistory`). Tras escribir se
+      marcan las pistas para releer y se re-escanea: reagrupa discos, recalcula el año del disco y la carátula, conserva
+      estadísticas; la cola se refresca sin cortar el audio. Probado con MP3 sintéticos en los tests, nunca con la colección.
+      *Pendiente de verificar por el usuario en Xcode con un disco de prueba.*
 - [ ] **5. Last.fm** — autenticación de escritorio, now playing, scrobble (regla en `scrobbleThreshold`), cola offline
       en `scrobbleQueue` con reenvío por lotes, love/unlove, ajustes.
 - [ ] **6. Pulido** — mini-reproductor o barra de menú (glifo en `docs/brand/octava-menubar.svg`), atajos (barra
@@ -144,3 +150,6 @@ Actualiza esta lista al cerrar cada fase.
 - Stop (`stopPlayback`): deja la canción actual al principio y en pausa, sin vaciar la cola. "Detener al terminar esta
   canción" (`stopAfterEntryID`) va atado a la entrada de la cola: al terminar, pasa a la siguiente en pausa; si se cambia
   de canción a mano deja de aplicar. Mientras está activo no se programa la siguiente (gapless).
+- Tags: `ID3TagWriter` rechaza (sin tocar el archivo) ID3v2.2, v2.4 con desincronización global y etiquetas dañadas.
+  Los temporales se llaman `.octava-<uuid>.tmp` (ocultos, en la carpeta del disco). Las miniaturas de carátula tienen
+  nombre único por versión para que la vista las recargue.

@@ -53,6 +53,9 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { model.showsMixBuilder }, set: { model.showsMixBuilder = $0 })) {
             MixBuilderView(model: model)
         }
+        .sheet(item: Binding(get: { model.tagEditTarget }, set: { model.tagEditTarget = $0 })) { target in
+            TagEditorView(model: model, tracks: target.tracks)
+        }
         .onChange(of: model.playlists.playlists) { _, playlists in
             // Si se borró la lista que estaba abierta, volver a Álbumes.
             if case .playlist(let id) = selection, !playlists.contains(where: { $0.id == id }) {

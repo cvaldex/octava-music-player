@@ -128,13 +128,13 @@ struct AlbumDetailView: View {
             .help("Agregar el disco a la cola")
 
             Button {
-                // Fase 4: editor de tags por lote.
+                model.editTags(album: album)
             } label: {
                 secondaryLabel("Editar tags", systemImage: "pencil", compact: compact)
             }
             .buttonStyle(OutlineButtonStyle())
-            .disabled(true)
-            .help("La edición de tags llega en la fase 4")
+            .disabled(model.isSavingTags)
+            .help("Editar los tags de todo el disco")
         }
         .fixedSize()
     }
@@ -204,6 +204,7 @@ struct TrackList: View {
                         Button("Agregar al final de la cola") { onAddToQueue(track) }
                         AddToPlaylistMenu(tracks: [track], model: model)
                         Divider()
+                        Button("Editar tags…") { model.editTags([track]) }
                         Button(track.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos") { onToggleFavorite(track) }
                     }
             }

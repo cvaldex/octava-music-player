@@ -129,6 +129,7 @@ actor LibraryScanner {
 
         let coverJobs: [CoverJob] = try await database.writer.write { db in
             var jobs: [Int64: CoverJob] = [:]
+            var touchedAlbums = Set<Int64>()
             for file in files {
                 let tags = file.tags
                 let artistForGrouping = Self.nonEmpty(tags.albumArtist) ?? Self.nonEmpty(tags.artist) ?? "Artista desconocido"
@@ -162,12 +163,20 @@ actor LibraryScanner {
                 track.bitrate = tags.bitrate
                 track.albumId = album.id
                 try track.save(db)
+                if let albumId = album.id { touchedAlbums.insert(albumId) }
 
                 if let albumId = album.id, album.coverCachePath == nil {
                     var job = jobs[albumId] ?? CoverJob(albumId: albumId, artwork: nil, folderURL: file.folderURL)
                     if job.artwork == nil { job.artwork = tags.artwork }
                     jobs[albumId] = job
                 }
+            }
+            // Año del disco: el menor de sus canciones (se recalcula para que una edición de tags se refleje).
+            for albumId in touchedAlbums {
+                try db.execute(sql: """
+                    UPDATE album SET year = (SELECT MIN(year) FROM track WHERE albumId = ? AND year IS NOT NULL)
+                    WHERE id = ?
+                    """, arguments: [albumId, albumId])
             }
             return Array(jobs.values)
         }

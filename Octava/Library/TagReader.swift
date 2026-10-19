@@ -18,7 +18,7 @@ struct TrackTags: Sendable {
     var bitrate: Int?
 }
 
-/// Lectura de tags ID3 con AVFoundation (solo lectura; la escritura llega en la fase 4 con ID3TagEditor).
+/// Lectura de tags ID3 con AVFoundation. La escritura la hace `ID3TagWriter` (AVFoundation no escribe tags MP3).
 enum TagReader {
     static func read(url: URL) async throws -> TrackTags {
         let asset = AVURLAsset(url: url)

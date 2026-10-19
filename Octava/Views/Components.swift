@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Botón principal terracota con texto blanco.
 struct AccentButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(.white)
@@ -9,6 +11,7 @@ struct AccentButtonStyle: ButtonStyle {
             .frame(height: 34)
             .background(Theme.accent.opacity(configuration.isPressed ? 0.85 : 1),
                         in: RoundedRectangle(cornerRadius: 8))
+            .opacity(isEnabled ? 1 : 0.4)
             .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 }
