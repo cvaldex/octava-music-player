@@ -110,7 +110,10 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
       > 25 % → no se quitan sin confirmación (`withheldMissing`); archivos movidos o renombrados se reconocen por
       título + artista + duración y conservan estadísticas; canción que no abre → aviso flotante y salta.
       El cambio de salida de audio ya lo recupera `recoverStoppedEngine` (fase 2). *Modo oscuro: postergado por decisión del usuario (el diseño está en `docs/mockups/oscuro`).*
-- [ ] **7. Uso diario** — build Release y copia a /Applications.
+- [x] **7. Uso diario** — `tools/install.command` (doble clic, o `script` en el ejecutor) compila en Release e
+      instala/actualiza `/Applications/Octava.app`; los datos viven en el contenedor de la app y se conservan.
+      Ajustes › General muestra la carpeta de música con "Cambiar…"; al abrir se preguntó una vez por la carpeta
+      (`askedForMusicFolderOnLaunchV1`). Para actualizar después de cambios: volver a ejecutar `tools/install.command`.
 
 Actualiza esta lista al cerrar cada fase.
 
@@ -150,6 +153,7 @@ Actualiza esta lista al cerrar cada fase.
 - Ajustes de reproducción (repetir, normalización, volumen, seguir con mezcla) en `UserDefaults`; la cola en `appState`.
 - Al abrir con carpeta configurada se lanza un escaneo incremental automático.
 - `TagReader` toma "Album Artist" del frame TPE2 (`id3MetadataBand`).
+- `tools/install.command`: instala la versión Release en /Applications (no lo ejecutes mientras el usuario escucha música: cierra la app).
 - `tools/build-runner.command`: ejecutor que se abre con doble clic y compila cuando aparece `build-logs/request`
   (bootstrap | generate | build | test | all | env | gitstatus | gitcommit). `build-logs/wait.sh <comando>` envía el pedido
   y espera el resultado. Sirve para trabajar a distancia sin escribir en la Terminal;
