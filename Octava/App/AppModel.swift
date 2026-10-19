@@ -70,9 +70,18 @@ final class AppModel {
         static let activeMix = "activeMix"
     }
 
+    /// La app corre como anfitrión de los tests: no debe tocar la biblioteca real.
+    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
     init() {
+        ScanSelfTest.runIfRequested()
+        // Una sola Octava a la vez: dos copias (por ejemplo la de Aplicaciones y la de Xcode) comparten la base de
+        // datos y, escaneando al mismo tiempo, la desordenan.
+        if !Self.isRunningTests {
+            Self.exitIfAnotherInstanceIsRunning()
+        }
         do {
-            database = try AppDatabase.makeShared()
+            database = Self.isRunningTests ? try AppDatabase.makeEmpty() : try AppDatabase.makeShared()
         } catch {
             fatalError("No se pudo abrir la base de datos de Octava: \(error)")
         }
@@ -115,7 +124,7 @@ final class AppModel {
             MainActor.assumeIsolated { self?.savePlaybackState() }
         }
 
-        if let folder = FolderAccess.restoreFolder() {
+        if !Self.isRunningTests, let folder = FolderAccess.restoreFolder() {
             activate(folder: folder)
         }
         library.reload()
@@ -129,6 +138,7 @@ final class AppModel {
         library.onFavoriteChanged = { [weak self] track, loved in
             self?.scrobbler.setLoved(loved, track: track)
         }
+        guard !Self.isRunningTests else { return }
         observeVolumes()
         installKeyMonitor()
 
@@ -139,6 +149,25 @@ final class AppModel {
         if musicFolder != nil {
             Task { await rescan() }
         }
+    }
+
+    // MARK: Una sola instancia
+
+    private static func exitIfAnotherInstanceIsRunning() {
+        let me = ProcessInfo.processInfo.processIdentifier
+        let bundleID = Bundle.main.bundleIdentifier ?? "local.octava.Octava"
+        guard let other = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .first(where: { $0.processIdentifier != me && !$0.isTerminated }) else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Octava ya está abierta"
+        alert.informativeText = "Hay otra copia de Octava funcionando\(other.bundleURL.map { " (\($0.path))" } ?? ""). "
+            + "Dos copias a la vez pueden desordenar la biblioteca, así que esta se cerrará. "
+            + "Si quieres usar esta copia, cierra primero la otra."
+        alert.addButton(withTitle: "Ir a la Octava abierta")
+        alert.runModal()
+        other.activate()
+        exit(0)
     }
 
     // MARK: Carpeta de música

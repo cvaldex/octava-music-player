@@ -402,3 +402,45 @@ final class ScannerResilienceTests: XCTestCase {
         XCTAssertTrue(uno.isFavorite)
     }
 }
+
+/// Cambio de carpeta raíz a la carpeta padre (caso real: "05 - Bootlegs" → "02 - Musica").
+final class RootChangeTests: XCTestCase {
+    func testChangingRootToParentKeepsEveryTrackAligned() async throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("octava-root-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: base) }
+        let oldRoot = base.appendingPathComponent("05 - Bootlegs")
+        var durations: [String: Int] = [:]
+        for album in 1...3 {
+            for n in 1...12 {
+                let title = "Disco\(album) Tema \(n)"
+                let frames = 40 + album * 13 + n * 7 // duraciones distintas
+                durations[title] = frames
+                var audio: [UInt8] = []
+                for _ in 0..<frames { audio += [0xFF, 0xFB, 0x90, 0x64] + [UInt8](repeating: 0, count: 413) }
+                let data = try ID3TagWriter.apply(TagChanges(text: [.title: title, .artist: "Banda", .album: "Disco \(album)",
+                                                                    .trackNumber: "\(n)"]), to: Data(audio))
+                let url = oldRoot.appendingPathComponent("Banda - Disco \(album)/CD 1/\(String(format: "%02d", n)) - \(title).mp3")
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try data.write(to: url)
+            }
+        }
+        // Otra música en la carpeta padre.
+        let database = try AppDatabase.makeEmpty()
+        let scanner = LibraryScanner(database: database)
+        _ = try await scanner.scan(root: oldRoot) { _ in }
+        try await database.writer.write { db in try db.execute(sql: "UPDATE track SET playCount = id") }
+        let before = try await database.writer.read { db in try Track.fetchAll(db) }
+        let playsByTitle = Dictionary(uniqueKeysWithValues: before.map { ($0.title, $0.playCount) })
+
+        let summary = try await scanner.scan(root: base) { _ in }
+        let after = try await database.writer.read { db in try Track.fetchAll(db) }
+        XCTAssertEqual(summary.moved, 36)
+        XCTAssertEqual(summary.withheldMissing, 0)
+        XCTAssertEqual(after.count, 36)
+        for track in after {
+            XCTAssertTrue(track.relativePath.hasPrefix("05 - Bootlegs/"), track.relativePath)
+            XCTAssertTrue(track.relativePath.contains(track.title), "\(track.relativePath) ≠ \(track.title)")
+            XCTAssertEqual(track.playCount, playsByTitle[track.title], track.title)
+        }
+    }
+}

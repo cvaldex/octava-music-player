@@ -107,21 +107,23 @@ actor LibraryScanner {
         for chunkStart in stride(from: 0, to: changed.count, by: concurrency) {
             try Task.checkCancellation()
             let chunk = Array(changed[chunkStart..<min(chunkStart + concurrency, changed.count)])
-            let results = await withTaskGroup(of: (Int, Result<TrackTags, Error>).self) { group in
-                for (offset, item) in chunk.enumerated() {
-                    let url = item.file.url
-                    group.addTask {
-                        do { return (offset, .success(try await TagReader.read(url: url))) }
-                        catch { return (offset, .failure(error)) }
-                    }
+            // Lecturas en paralelo con tareas independientes, emparejadas por posición con su archivo.
+            // No se usa withTaskGroup: compilado en Release (Xcode 27, modo Swift 5) dentro de este actor mezclaba
+            // los resultados de la tanda y llegó a cerrarse la app (TaskGroup::offer). Ver CLAUDE.md.
+            let tasks = chunk.map { item in
+                let url = item.file.url
+                return Task.detached(priority: .utility) { () -> Result<TrackTags, Error> in
+                    do { return .success(try await TagReader.read(url: url)) }
+                    catch { return .failure(error) }
                 }
-                var collected: [(Int, Result<TrackTags, Error>)] = []
-                for await result in group { collected.append(result) }
-                return collected.sorted { $0.0 < $1.0 }
+            }
+            var results: [String: Result<TrackTags, Error>] = [:]
+            for (item, task) in zip(chunk, tasks) {
+                results[item.relative] = await task.value
             }
 
-            for (offset, result) in results {
-                let item = chunk[offset]
+            for item in chunk {
+                guard let result = results[item.relative] else { continue }
                 switch result {
                 case .success(let tags):
                     let folderURL = item.file.url.deletingLastPathComponent()

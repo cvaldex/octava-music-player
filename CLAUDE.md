@@ -169,3 +169,12 @@ Actualiza esta lista al cerrar cada fase.
   nombre único por versión para que la vista las recargue.
 - Logo de Last.fm en Ajustes: `Resources/Assets.xcassets/LastFMLogo` (ícono 145806 de Flaticon; la licencia gratuita
   pide atribución al autor si la app se distribuye).
+- **Escáner y Release**: no usar `withTaskGroup` en `LibraryScanner`. Compilado en Release (Xcode 27, modo Swift 5)
+  mezclaba los resultados de la tanda (tags de un archivo guardados en otro, 3 de cada 4 canciones perdidas) y llegó a
+  cerrarse en `TaskGroup::offer`. Se usan `Task.detached` por archivo emparejadas por posición. En Debug no se notaba:
+  para probar el escáner tal como queda instalado, `OCTAVA_SCAN_SELFTEST=tmp` + el binario Release (`ScanSelfTest`).
+- Los tests corren con la app como anfitrión: `AppModel.isRunningTests` usa una base en memoria y no abre la carpeta
+  (antes cada `test` escaneaba la biblioteca real). Solo una Octava a la vez (`exitIfAnotherInstanceIsRunning`): dos
+  copias comparten la base de datos.
+- La base en `…/Containers/local.octava.Octava/…/library.sqlite` usa diario de reversión: si alguna vez se edita a mano
+  (con la app cerrada), no dejar un `library.sqlite-journal` con contenido junto a un archivo reemplazado.
