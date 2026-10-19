@@ -1,33 +1,35 @@
-import AppKit
 import SwiftUI
 
 /// Ajustes (⌘,). Por ahora: la cuenta de Last.fm.
 struct SettingsView: View {
     let model: AppModel
 
-    /// Logo de Last.fm para la pestaña (a tamaño de ícono de barra de herramientas).
-    private static let lastFMLogo: NSImage? = {
-        guard let original = NSImage(named: "LastFMLogo"), let logo = original.copy() as? NSImage else { return nil }
-        logo.size = NSSize(width: 24, height: 24)
-        return logo
-    }()
-
     var body: some View {
-        TabView {
-            LastFMSettings(scrobbler: model.scrobbler)
-                .tabItem {
-                    Label {
-                        Text("Last.fm")
-                    } icon: {
-                        if let logo = Self.lastFMLogo {
-                            Image(nsImage: logo).renderingMode(.original)
-                        } else {
-                            Image(systemName: "dot.radiowaves.left.and.right")
-                        }
-                    }
+        // Por ahora hay una sola sección: sin pestañas (la barra de pestañas mostraba el logo en gris).
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Image("LastFMLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 36, height: 36)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Last.fm")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Theme.ink)
+                    Text("Scrobbling y “Me encanta”")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.secondaryText)
                 }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+
+            LastFMSettings(scrobbler: model.scrobbler)
         }
         .frame(width: 520)
+        .background(Theme.surface)
+        .navigationTitle("Ajustes")
         .preferredColorScheme(.light)
     }
 }

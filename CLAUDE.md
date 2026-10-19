@@ -153,3 +153,5 @@ Actualiza esta lista al cerrar cada fase.
 - Tags: `ID3TagWriter` rechaza (sin tocar el archivo) ID3v2.2, v2.4 con desincronización global y etiquetas dañadas.
   Los temporales se llaman `.octava-<uuid>.tmp` (ocultos, en la carpeta del disco). Las miniaturas de carátula tienen
   nombre único por versión para que la vista las recargue.
+- Logo de Last.fm en Ajustes: `Resources/Assets.xcassets/LastFMLogo` (ícono 145806 de Flaticon; la licencia gratuita
+  pide atribución al autor si la app se distribuye).
