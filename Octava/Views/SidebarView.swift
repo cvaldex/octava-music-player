@@ -66,6 +66,19 @@ struct SidebarView: View {
                     .tag(item)
                     .help("Lista que se actualiza sola")
                 }
+                Button {
+                    model.playShuffledLibrary()
+                } label: {
+                    Label {
+                        Text("Mezcla aleatoria")
+                    } icon: {
+                        Image(systemName: "shuffle").foregroundStyle(Theme.accent)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(model.library.trackCount == 0)
+                .help("Mezcla aleatoria de toda la colección (⇧⌘S): se rellena sola")
                 ForEach(playlists) { playlist in
                     if let id = playlist.id {
                         Label(playlist.name, systemImage: "music.note.list")

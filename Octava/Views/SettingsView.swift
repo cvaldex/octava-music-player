@@ -1,13 +1,31 @@
+import AppKit
 import SwiftUI
 
 /// Ajustes (⌘,). Por ahora: la cuenta de Last.fm.
 struct SettingsView: View {
     let model: AppModel
 
+    /// Logo de Last.fm para la pestaña (a tamaño de ícono de barra de herramientas).
+    private static let lastFMLogo: NSImage? = {
+        guard let original = NSImage(named: "LastFMLogo"), let logo = original.copy() as? NSImage else { return nil }
+        logo.size = NSSize(width: 24, height: 24)
+        return logo
+    }()
+
     var body: some View {
         TabView {
             LastFMSettings(scrobbler: model.scrobbler)
-                .tabItem { Label("Last.fm", systemImage: "dot.radiowaves.left.and.right") }
+                .tabItem {
+                    Label {
+                        Text("Last.fm")
+                    } icon: {
+                        if let logo = Self.lastFMLogo {
+                            Image(nsImage: logo).renderingMode(.original)
+                        } else {
+                            Image(systemName: "dot.radiowaves.left.and.right")
+                        }
+                    }
+                }
         }
         .frame(width: 520)
         .preferredColorScheme(.light)
