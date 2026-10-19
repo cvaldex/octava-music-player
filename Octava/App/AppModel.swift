@@ -144,9 +144,28 @@ final class AppModel {
     // MARK: Carpeta de música
 
     func chooseFolder() {
-        guard let folder = FolderAccess.chooseFolder() else { return }
+        guard let folder = FolderAccess.chooseFolder(current: musicFolder) else { return }
+        guard folder.standardizedFileURL != musicFolder?.standardizedFileURL else { return }
+        // Al cambiar de carpeta se vuelve a escanear: las canciones conocidas (misma ruta, o mismo título, artista y
+        // duración) conservan sus estadísticas; si faltan muchas de la carpeta anterior, se pide confirmación.
+        withheldMissingCount = 0
+        keptMissingCount = 0
         activate(folder: folder)
         Task { await rescan() }
+    }
+
+    /// Pedido del usuario (fase 7): preguntar una vez, al abrir, por la carpeta de música, para poder elegir otra.
+    /// Si se cancela, se mantiene la actual.
+    private static let folderPromptKey = "askedForMusicFolderOnLaunchV1"
+
+    func promptForFolderOnLaunchIfNeeded() {
+        // Al correr los tests la app es solo el anfitrión: nada de diálogos.
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.folderPromptKey) else { return }
+        defaults.set(true, forKey: Self.folderPromptKey)
+        guard musicFolder != nil else { return } // Sin carpeta ya se muestra la bienvenida.
+        chooseFolder()
     }
 
     private func activate(folder: URL) {

@@ -9,6 +9,18 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("General") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Carpeta de música")
+                        Text(model.musicFolder.map { ($0.path as NSString).abbreviatingWithTildeInPath } ?? "Sin elegir")
+                            .font(Theme.mono(11))
+                            .foregroundStyle(Theme.secondaryText)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    Button("Cambiar…") { model.chooseFolder() }
+                }
                 Toggle("Mostrar el mini reproductor en la barra de menú", isOn: $showsMenuBarPlayer)
             }
 

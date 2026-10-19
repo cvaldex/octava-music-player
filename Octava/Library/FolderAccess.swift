@@ -6,10 +6,13 @@ import AppKit
 enum FolderAccess {
     private static let bookmarkKey = "musicFolderBookmark"
 
-    static func chooseFolder() -> URL? {
+    static func chooseFolder(current: URL? = nil) -> URL? {
         let panel = NSOpenPanel()
         panel.title = "Elige tu carpeta de música"
-        panel.message = "Octava leerá los MP3 de esta carpeta y sus subcarpetas."
+        panel.message = current == nil
+            ? "Octava leerá los MP3 de esta carpeta y sus subcarpetas."
+            : "Octava leerá los MP3 de esta carpeta y sus subcarpetas. Las canciones que ya conoce conservan sus escuchas, favoritos y listas."
+        if let current { panel.directoryURL = current.deletingLastPathComponent() }
         panel.prompt = "Usar esta carpeta"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
