@@ -16,6 +16,9 @@ final class PlaybackEngine {
     private(set) var currentTime: TimeInterval = 0
     private(set) var volume: Float = 0.8
     private(set) var source: QueueSource = .mix
+    /// Entrada de la cola tras la cual se detiene la reproducción ("Detener al terminar esta canción").
+    /// Va atada a esa entrada: si se cambia de canción a mano, deja de aplicar.
+    private(set) var stopAfterEntryID: UUID?
     var lastError: String?
 
     var repeatMode: RepeatMode = .off {
@@ -88,6 +91,7 @@ final class PlaybackEngine {
             toggle: { [weak self] in self?.togglePlayPause() },
             next: { [weak self] in self?.next() },
             previous: { [weak self] in self?.previous() },
+            stop: { [weak self] in self?.stopPlayback() },
             seek: { [weak self] in self?.seek(to: $0) }
         ))
 
@@ -189,6 +193,47 @@ final class PlaybackEngine {
     func setVolume(_ value: Float) {
         volume = min(1, max(0, value))
         engine.mainMixerNode.outputVolume = volume
+    }
+
+    /// ¿Se detendrá al terminar la canción actual?
+    var stopsAfterCurrent: Bool {
+        stopAfterEntryID != nil && stopAfterEntryID == queue.currentEntry?.id
+    }
+
+    /// Activa o desactiva "Detener al terminar esta canción".
+    func setStopAfterCurrent(_ enabled: Bool) {
+        guard let entry = queue.currentEntry else {
+            stopAfterEntryID = nil
+            return
+        }
+        stopAfterEntryID = enabled ? entry.id : nil
+        if enabled, prescheduled != nil {
+            // La siguiente ya estaba programada (gapless): descartarla reprogramando la actual desde donde va.
+            updateCurrentTimeFromPlayer()
+            seek(to: currentTime)
+            prescheduleAttemptedSegment = -1
+        }
+        onStateChanged?()
+    }
+
+    func toggleStopAfterCurrent() {
+        setStopAfterCurrent(!stopsAfterCurrent)
+    }
+
+    /// Botón Stop: detiene el audio y deja la canción actual al principio, en pausa. La cola se mantiene.
+    func stopPlayback() {
+        stopAfterEntryID = nil
+        guard currentFile != nil else { return }
+        generation += 1
+        player.stop()
+        prescheduled = nil
+        isPlaying = false
+        stopTimer()
+        startFrame = 0
+        needsSchedule = true
+        currentTime = 0
+        publishNowPlaying()
+        onStateChanged?()
     }
 
     func stop() {
@@ -328,6 +373,17 @@ final class PlaybackEngine {
             onTrackFinished?(finished)
         }
 
+        // "Detener al terminar esta canción": pasar a la siguiente, pero en pausa y al principio.
+        if stopsAfterCurrent {
+            stopAfterEntryID = nil
+            prescheduled = nil
+            if let index = queue.indexAfterCurrent(repeatMode: repeatMode, automatic: true) {
+                queue.select(index)
+            }
+            startCurrent(autoplay: false)
+            return
+        }
+
         // Transición gapless: la siguiente ya está sonando.
         if let next = prescheduled, let index = queue.index(ofEntry: next.entryID) {
             queue.select(index)
@@ -370,6 +426,7 @@ final class PlaybackEngine {
     /// Programa la siguiente pista unos segundos antes del final (gapless).
     private func prescheduleNextIfNeeded() {
         guard isPlaying,
+              !stopsAfterCurrent,
               prescheduled == nil,
               prescheduleAttemptedSegment != currentSegmentID,
               let file = currentFile,

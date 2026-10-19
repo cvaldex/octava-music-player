@@ -141,3 +141,6 @@ Actualiza esta lista al cerrar cada fase.
 - Mezclas: mientras `activeMix` exista (se guarda en UserDefaults), cada cambio de la cola la rellena. Reproducir un
   disco, una lista o una tabla la detiene; "Limpiar" la cola también (si no, se rellenaría al instante).
 - Diálogos de nombre/confirmación desde menús: `TextPrompt` (NSAlert modal), no hojas de SwiftUI.
+- Stop (`stopPlayback`): deja la canción actual al principio y en pausa, sin vaciar la cola. "Detener al terminar esta
+  canción" (`stopAfterEntryID`) va atado a la entrada de la cola: al terminar, pasa a la siguiente en pausa; si se cambia
+  de canción a mano deja de aplicar. Mientras está activo no se programa la siguiente (gapless).

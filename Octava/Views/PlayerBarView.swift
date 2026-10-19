@@ -103,6 +103,8 @@ struct PlayerBarView: View {
             .buttonStyle(IconButtonStyle(tint: Theme.ink))
             .accessibilityLabel("Siguiente")
 
+            StopButton(player: player)
+
             Button { model.cycleRepeatMode() } label: {
                 Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
                     .font(.system(size: 14, weight: player.repeatMode == .off ? .medium : .semibold))
@@ -226,5 +228,39 @@ struct SeekBar: View {
         .accessibilityElement()
         .accessibilityLabel("Progreso")
         .accessibilityValue("\(formatDuration(current)) de \(formatDuration(duration))")
+    }
+}
+
+/// Botón Stop. Clic: detiene y vuelve al principio de la canción (la cola se mantiene).
+/// Clic derecho: "Detener al terminar esta canción". Mientras esa opción está activa, el botón se ve terracota
+/// con un punto. Recibe el reproductor explícitamente (el menú contextual no hereda bien el entorno).
+private struct StopButton: View {
+    let player: PlaybackEngine
+
+    var body: some View {
+        let stopsAfter = player.stopsAfterCurrent
+        Button { player.stopPlayback() } label: {
+            Image(systemName: "stop.fill")
+                .font(.system(size: 13))
+                .overlay(alignment: .topTrailing) {
+                    if stopsAfter {
+                        Circle()
+                            .fill(Theme.accent)
+                            .frame(width: 6, height: 6)
+                            .offset(x: 5, y: -4)
+                    }
+                }
+        }
+        .buttonStyle(IconButtonStyle(tint: stopsAfter ? Theme.accent : Theme.ink))
+        .disabled(player.currentTrack == nil)
+        .help(stopsAfter ? "Se detendrá al terminar esta canción (clic derecho para cancelar)"
+                         : "Detener (clic derecho: detener al terminar esta canción)")
+        .accessibilityLabel("Detener")
+        .accessibilityValue(stopsAfter ? "Se detendrá al terminar esta canción" : "")
+        .contextMenu {
+            Button("Detener ahora") { player.stopPlayback() }
+            Toggle("Detener al terminar esta canción",
+                   isOn: Binding(get: { player.stopsAfterCurrent }, set: { player.setStopAfterCurrent($0) }))
+        }
     }
 }

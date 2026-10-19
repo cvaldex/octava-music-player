@@ -70,10 +70,14 @@ struct QueuePanel: View {
 
             if let current = player.queue.current {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("SONANDO")
-                        .font(Theme.sectionLabel)
-                        .tracking(0.6)
-                        .foregroundStyle(Theme.tertiaryText)
+                    HStack {
+                        Text("SONANDO")
+                            .font(Theme.sectionLabel)
+                            .tracking(0.6)
+                            .foregroundStyle(Theme.tertiaryText)
+                        Spacer()
+                        StopAfterChip(player: player)
+                    }
                     HStack(spacing: 10) {
                         PlayingBars(animating: player.isPlaying)
                         VStack(alignment: .leading, spacing: 1) {
@@ -177,5 +181,32 @@ private struct QueueRow: View {
                 .foregroundStyle(Theme.tertiaryText)
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// "Detener al terminar": interruptor junto a la canción que suena.
+private struct StopAfterChip: View {
+    let player: PlaybackEngine
+
+    var body: some View {
+        let isOn = player.stopsAfterCurrent
+        Button {
+            player.toggleStopAfterCurrent()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "stop.circle\(isOn ? ".fill" : "")")
+                Text(isOn ? "Se detiene al terminar" : "Detener al terminar")
+            }
+            .font(.system(size: 11, weight: isOn ? .semibold : .regular))
+            .foregroundStyle(isOn ? Theme.accentText : Theme.secondaryText)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(isOn ? Theme.accentTint : Color.clear, in: Capsule())
+            .overlay(Capsule().stroke(isOn ? Color.clear : Theme.controlBorder))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Detener la reproducción cuando termine esta canción")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }

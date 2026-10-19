@@ -11,6 +11,7 @@ final class NowPlayingCenter {
         var toggle: () -> Void
         var next: () -> Void
         var previous: () -> Void
+        var stop: () -> Void
         var seek: (TimeInterval) -> Void
     }
 
@@ -44,6 +45,10 @@ final class NowPlayingCenter {
         }
         center.previousTrackCommand.addTarget { [weak self] _ in
             Task { @MainActor in self?.handlers.previous() }
+            return .success
+        }
+        center.stopCommand.addTarget { [weak self] _ in
+            Task { @MainActor in self?.handlers.stop() }
             return .success
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
