@@ -29,7 +29,7 @@ struct MiniPlayerView: View {
                         .foregroundStyle(track == nil ? Theme.secondaryText : Theme.ink)
                         .lineLimit(2)
                     if let track {
-                        Text(track.artist)
+                        Text(track.performer)
                             .font(.system(size: 12))
                             .foregroundStyle(Theme.navText)
                             .lineLimit(1)

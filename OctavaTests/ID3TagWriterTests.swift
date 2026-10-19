@@ -444,3 +444,27 @@ final class RootChangeTests: XCTestCase {
         }
     }
 }
+
+/// Compilaciones: Artist = "Various Artists" y el intérprete en Album Artist → un solo disco.
+final class CompilationGroupingTests: XCTestCase {
+    func testCompilationIsOneAlbum() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("octava-va-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        for (n, performer) in ["Clarence Carter", "Elton John", "The Seeds"].enumerated() {
+            var audio: [UInt8] = []
+            for _ in 0..<(30 + n * 5) { audio += [0xFF, 0xFB, 0x90, 0x64] + [UInt8](repeating: 0, count: 413) }
+            let data = try ID3TagWriter.apply(TagChanges(text: [.title: "Tema \(n)", .artist: "Various Artists",
+                                                                .albumArtist: performer, .album: "Almost Famous"]),
+                                              to: Data(audio))
+            let url = root.appendingPathComponent("VA/Almost Famous/\(n).mp3")
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url)
+        }
+        let database = try AppDatabase.makeEmpty()
+        _ = try await LibraryScanner(database: database).scan(root: root) { _ in }
+        let albums = try await database.writer.read { db in try Album.fetchAll(db) }
+        XCTAssertEqual(albums.map(\.albumArtist), ["Various Artists"])
+        let tracks = try await database.writer.read { db in try Track.order(Column("title")).fetchAll(db) }
+        XCTAssertEqual(tracks.map(\.performer), ["Clarence Carter", "Elton John", "The Seeds"])
+    }
+}

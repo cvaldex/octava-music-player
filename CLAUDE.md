@@ -178,3 +178,8 @@ Actualiza esta lista al cerrar cada fase.
   copias comparten la base de datos.
 - La base en `…/Containers/local.octava.Octava/…/library.sqlite` usa diario de reversión: si alguna vez se edita a mano
   (con la app cerrada), no dejar un `library.sqlite-journal` con contenido junto a un archivo reemplazado.
+- **Artistas** (decisión del usuario): en esta colección `Artist` (TPE1, columna `track.artist`) es el artista del
+  disco ("Various Artists" en compilaciones) y `Album Artist` (TPE2, columna `track.albumArtist`) es quien interpreta
+  la canción. Los discos se agrupan por `Track.groupingArtist` (TPE1); listas, barra, cola, Centro de Control y
+  Last.fm usan `Track.performer` (TPE2, o TPE1 si falta o es un genérico tipo "Various Artists"). Migración `v6`
+  fuerza a releer para reagrupar. Los nombres de las columnas no cambian (siguen el estándar ID3).

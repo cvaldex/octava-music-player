@@ -13,10 +13,12 @@ struct ScrobbleItem: Codable, Equatable, Sendable {
     var startedAt: Date
 
     init(track: Track, startedAt: Date) {
-        artist = track.artist
+        // Intérprete de la canción (Album Artist en esta colección) y, si es distinto, el artista del disco.
+        artist = track.performer
         title = track.title
         album = track.album.isEmpty ? nil : track.album
-        albumArtist = track.albumArtist.flatMap { $0.isEmpty || $0 == track.artist ? nil : $0 }
+        let albumArtist = track.groupingArtist
+        self.albumArtist = albumArtist.isEmpty || albumArtist == track.performer ? nil : albumArtist
         trackNumber = track.trackNumber
         duration = track.duration
         self.startedAt = startedAt

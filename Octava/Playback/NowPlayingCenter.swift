@@ -79,14 +79,14 @@ final class NowPlayingCenter {
 
         var values: [String: Any] = [
             MPMediaItemPropertyTitle: track.title,
-            MPMediaItemPropertyArtist: track.artist,
+            MPMediaItemPropertyArtist: track.performer,
             MPMediaItemPropertyAlbumTitle: track.album,
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
         ]
-        if let albumArtist = track.albumArtist { values[MPMediaItemPropertyAlbumArtist] = albumArtist }
+        values[MPMediaItemPropertyAlbumArtist] = track.groupingArtist
         if let number = track.trackNumber { values[MPMediaItemPropertyAlbumTrackNumber] = number }
 
         // La carátula se crea una vez por canción.

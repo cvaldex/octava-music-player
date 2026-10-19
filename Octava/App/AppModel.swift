@@ -393,7 +393,7 @@ final class AppModel {
         // No repetir lo que ya está por sonar (ni la actual).
         var excluded = Set(queue.upcoming.compactMap(\.track.id))
         if let currentID = queue.current?.id { excluded.insert(currentID) }
-        let previousArtist = queue.upcoming.last?.track.groupingArtist ?? queue.current?.groupingArtist
+        let previousArtist = queue.upcoming.last?.track.performer ?? queue.current?.performer
         let more = MixBuilder.build(from: mixCandidates(for: rule), count: missing,
                                     excluding: excluded, previousArtist: previousArtist)
         if !more.isEmpty {
@@ -441,7 +441,7 @@ final class AppModel {
     func saveQueueAsPlaylist() -> Int64? {
         let tracks = player.queue.items.map(\.track)
         guard !tracks.isEmpty else { return nil }
-        let suggested = activeMix?.title ?? player.queue.current.map { "\($0.artist) y más" } ?? "Mi lista"
+        let suggested = activeMix?.title ?? player.queue.current.map { "\($0.performer) y más" } ?? "Mi lista"
         return createPlaylistPrompting(with: tracks, suggestedName: suggested)
     }
 
@@ -679,7 +679,7 @@ final class AppModel {
         let justPlayedAlbum = player.currentTrack?.albumId
         let candidates = mixCandidates(for: MixRule()).filter { $0.albumId == nil || $0.albumId != justPlayedAlbum }
         let mix = MixBuilder.build(from: candidates, count: MixBuilder.targetLength,
-                                   previousArtist: player.currentTrack?.groupingArtist)
+                                   previousArtist: player.currentTrack?.performer)
         guard !mix.isEmpty else { return nil }
         activeMix = MixRule()
         return mix

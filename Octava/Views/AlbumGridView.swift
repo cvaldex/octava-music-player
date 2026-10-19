@@ -52,7 +52,7 @@ struct AlbumGridView: View {
             Text("Álbumes")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Theme.ink)
-            Text(library.sort == .artist ? "Agrupados por artista del álbum" : "Ordenados por \(library.sort.rawValue.lowercased())")
+            Text(library.sort == .artist ? "Agrupados por artista" : "Ordenados por \(library.sort.rawValue.lowercased())")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.secondaryText)
                 .lineLimit(1)

@@ -49,7 +49,7 @@ struct PlayerBarView: View {
                     .foregroundStyle(track == nil ? Theme.secondaryText : Theme.ink)
                     .lineLimit(1)
                 if let track {
-                    Text("\(track.artist) — \(track.album)")
+                    Text("\(track.performer) — \(track.album)")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.secondaryText)
                         .lineLimit(1)

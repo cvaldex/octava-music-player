@@ -44,7 +44,7 @@ struct MixRule: Codable, Equatable {
 
     /// ¿Calza la canción con los filtros (sin contar el origen)?
     func matchesFilters(_ track: Track) -> Bool {
-        if !artists.isEmpty && !artists.contains(track.groupingArtist) && !artists.contains(track.artist) { return false }
+        if !artists.isEmpty && !artists.contains(track.groupingArtist) && !artists.contains(track.performer) { return false }
         if !genres.isEmpty {
             guard let genre = track.genre?.trimmingCharacters(in: .whitespaces), genres.contains(genre) else { return false }
         }
@@ -107,7 +107,7 @@ enum MixBuilder {
         let freshPart = spread(Array(fresh.prefix(count)), previousArtist: previousArtist)
         let remaining = count - freshPart.count
         let recentPart = remaining > 0
-            ? spread(Array(recent.prefix(remaining)), previousArtist: freshPart.last?.groupingArtist ?? previousArtist)
+            ? spread(Array(recent.prefix(remaining)), previousArtist: freshPart.last?.performer ?? previousArtist)
             : []
         return freshPart + recentPart
     }
@@ -134,11 +134,11 @@ enum MixBuilder {
             // Primero: ni el artista ni el disco recién sonados. Si no hay (una mezcla casi de un solo artista),
             // al menos otro disco. Si tampoco, se acepta la repetición.
             let pick = (0..<limit).first { index in
-                !blocked.contains(remaining[index].groupingArtist) && !albumClash(remaining[index])
+                !blocked.contains(remaining[index].performer) && !albumClash(remaining[index])
             } ?? (0..<limit).first { !albumClash(remaining[$0]) } ?? 0
             let track = remaining.remove(at: pick)
             result.append(track)
-            recentArtists.append(track.groupingArtist)
+            recentArtists.append(track.performer)
         }
         return result
     }

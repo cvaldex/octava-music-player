@@ -51,8 +51,8 @@ struct TrackTable: View {
             }
             .width(min: 120, ideal: 170)
 
-            TableColumn("Artista", value: \Track.artist) { (track: Track) in
-                Text(track.artist).foregroundStyle(Theme.navText).lineLimit(1)
+            TableColumn("Artista", value: \Track.performer) { (track: Track) in
+                Text(track.performer).foregroundStyle(Theme.navText).lineLimit(1)
             }
             .width(min: 70, ideal: 110)
 

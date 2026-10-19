@@ -59,7 +59,7 @@ enum LibraryIndex {
         guard !trimmed.isEmpty else { return SearchResults() }
         let foundAlbums = albums.filter { matches(trimmed, in: [$0.title, $0.albumArtist]) }
         var foundTracks: [Track] = []
-        for track in tracks where matches(trimmed, in: [track.title, track.artist, track.album]) {
+        for track in tracks where matches(trimmed, in: [track.title, track.artist, track.performer, track.album]) {
             foundTracks.append(track)
             if foundTracks.count >= trackLimit { break }
         }

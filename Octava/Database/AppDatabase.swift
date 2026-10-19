@@ -144,6 +144,13 @@ final class AppDatabase: Sendable {
             }
         }
 
+        // Los discos pasan a agruparse por "Artist" (TPE1) en vez de "Album Artist" (TPE2): las compilaciones quedan
+        // como un solo disco de "Various Artists". Se fuerza a releer los tags para reagruparlos (se conservan las
+        // estadísticas: van en cada canción).
+        migrator.registerMigration("v6") { db in
+            try db.execute(sql: "UPDATE track SET fileModifiedAt = ?", arguments: [Date(timeIntervalSince1970: 0)])
+        }
+
         return migrator
     }
 }

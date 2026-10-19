@@ -178,7 +178,9 @@ actor LibraryScanner {
             var touchedAlbums = Set<Int64>()
             for file in files {
                 let tags = file.tags
-                let artistForGrouping = Self.nonEmpty(tags.albumArtist) ?? Self.nonEmpty(tags.artist) ?? "Artista desconocido"
+                // El disco se agrupa por "Artist" (TPE1): en esta colección las compilaciones tienen
+                // Artist = "Various Artists" y el intérprete de cada canción en "Album Artist" (TPE2).
+                let artistForGrouping = Self.nonEmpty(tags.artist) ?? Self.nonEmpty(tags.albumArtist) ?? "Artista desconocido"
                 let albumTitle = Self.nonEmpty(tags.album) ?? file.folderURL.lastPathComponent
 
                 let album = try Self.findOrCreateAlbum(db: db,

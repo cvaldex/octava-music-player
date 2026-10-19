@@ -82,7 +82,7 @@ struct TagEditorView: View {
 
     private var subtitle: String {
         if !isBatch, let track = tracks.first {
-            return "\(track.title) · \(track.artist)"
+            return "\(track.title) · \(track.performer)"
         }
         let albums = Set(tracks.map(\.album))
         let count = countLabel(tracks.count, singular: "canción seleccionada", plural: "canciones seleccionadas")

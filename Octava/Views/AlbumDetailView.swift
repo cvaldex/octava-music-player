@@ -260,12 +260,21 @@ struct TrackRow: View {
             }
             .frame(width: 40, alignment: .trailing)
 
-            Text(track.title)
-                .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
-                .foregroundStyle(isCurrent ? Theme.accentText : Theme.ink)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 12)
+            // En compilaciones (o canciones con invitados) se muestra también quién la interpreta.
+            HStack(spacing: 6) {
+                Text(track.title)
+                    .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
+                    .foregroundStyle(isCurrent ? Theme.accentText : Theme.ink)
+                    .lineLimit(1)
+                if track.performer != track.groupingArtist {
+                    Text("· \(track.performer)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 12)
 
             Text(String(track.playCount))
                 .font(Theme.mono(12))

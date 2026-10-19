@@ -184,7 +184,7 @@ private struct PlaylistRow: View {
                     .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
                     .foregroundStyle(isCurrent ? Theme.accentText : Theme.ink)
                     .lineLimit(1)
-                Text("\(track.artist) · \(track.album)")
+                Text("\(track.performer) · \(track.album)")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)

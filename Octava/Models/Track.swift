@@ -48,9 +48,25 @@ struct Track: Codable, Identifiable, Hashable, FetchableRecord, MutablePersistab
         id = inserted.rowID
     }
 
-    /// Artista con el que se agrupa el disco: "Album Artist" si existe; si no, "Artist".
+    // En esta colección los tags se usan así (ver CLAUDE.md, "Artistas"):
+    //   Artist (TPE1)       = artista del disco: "Metallica", o "Various Artists" en compilaciones.
+    //   Album Artist (TPE2) = quién toca la canción: "Clarence Carter" dentro de una compilación.
+
+    /// Artista con el que se agrupa el disco: "Artist" (TPE1); si falta, "Album Artist".
     var groupingArtist: String {
-        if let albumArtist, !albumArtist.isEmpty { return albumArtist }
+        if !artist.isEmpty { return artist }
+        return albumArtist ?? ""
+    }
+
+    /// Quién interpreta la canción (se muestra en las listas y se envía a Last.fm): "Album Artist" (TPE2) si existe
+    /// y no es un genérico tipo "Various Artists"; si no, "Artist".
+    var performer: String {
+        if let albumArtist, !albumArtist.isEmpty, !Track.isVariousArtists(albumArtist) { return albumArtist }
         return artist
+    }
+
+    static func isVariousArtists(_ name: String) -> Bool {
+        let key = name.lowercased().trimmingCharacters(in: .whitespaces)
+        return ["various artists", "various", "varios artistas", "varios", "va", "v.a.", "v/a"].contains(key)
     }
 }

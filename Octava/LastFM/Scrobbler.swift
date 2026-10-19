@@ -253,7 +253,7 @@ final class Scrobbler {
         guard syncsLoves, isConnected, let key = sessionKey() else { return }
         Task {
             do {
-                try await client.setLoved(loved, artist: track.artist, title: track.title, sessionKey: key)
+                try await client.setLoved(loved, artist: track.performer, title: track.title, sessionKey: key)
             } catch let error as LastFMError where error.code == LastFMError.invalidSession {
                 sessionExpired()
             } catch {

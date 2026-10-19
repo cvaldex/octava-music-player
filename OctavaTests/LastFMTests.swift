@@ -63,12 +63,32 @@ final class LastFMAPITests: XCTestCase {
         XCTAssertEqual(LastFMAPI.acceptedCount(object), 2)
     }
 
-    func testItemFromTrackOmitsRedundantAlbumArtist() {
+    func testItemUsesPerformerAndAlbumArtist() {
+        // Disco normal: Artist = Album Artist.
         var track = Track(relativePath: "a.mp3", fileModifiedAt: Date(), title: "T", artist: "Banda", album: "Disco", duration: 200)
         track.albumArtist = "Banda"
-        XCTAssertNil(ScrobbleItem(track: track, startedAt: Date()).albumArtist)
-        track.albumArtist = "Varios"
-        XCTAssertEqual(ScrobbleItem(track: track, startedAt: Date()).albumArtist, "Varios")
+        var item = ScrobbleItem(track: track, startedAt: Date())
+        XCTAssertEqual(item.artist, "Banda")
+        XCTAssertNil(item.albumArtist)
+
+        // Compilación de esta colección: Artist = "Various Artists", Album Artist = intérprete.
+        track.artist = "Various Artists"
+        track.albumArtist = "Clarence Carter"
+        item = ScrobbleItem(track: track, startedAt: Date())
+        XCTAssertEqual(item.artist, "Clarence Carter")
+        XCTAssertEqual(item.albumArtist, "Various Artists")
+
+        // Sin Album Artist: se usa Artist.
+        track.artist = "Soda Stereo"
+        track.albumArtist = nil
+        XCTAssertEqual(ScrobbleItem(track: track, startedAt: Date()).artist, "Soda Stereo")
+    }
+
+    func testPerformerIgnoresGenericAlbumArtist() {
+        var track = Track(relativePath: "a.mp3", fileModifiedAt: Date(), title: "T", artist: "Dream Theater", album: "D", duration: 1)
+        track.albumArtist = "Various Artists"
+        XCTAssertEqual(track.performer, "Dream Theater")
+        XCTAssertEqual(track.groupingArtist, "Dream Theater")
     }
 }
 
