@@ -4,6 +4,7 @@ import SwiftUI
 struct OctavaApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
+    @AppStorage("showsMenuBarPlayer") private var showsMenuBarPlayer = true
 
     var body: some Scene {
         WindowGroup {
@@ -48,6 +49,21 @@ struct OctavaApp: App {
                     .keyboardShortcut(.leftArrow, modifiers: .command)
                 Button(model.player.isMuted ? "Quitar el silencio" : "Silenciar") { model.player.toggleMute() }
                     .keyboardShortcut("m", modifiers: [.command, .option])
+                Divider()
+                Button("Retroceder 10 segundos") { model.skip(by: -10) }
+                    .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+                    .disabled(model.player.currentTrack == nil)
+                Button("Adelantar 10 segundos") { model.skip(by: 10) }
+                    .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+                    .disabled(model.player.currentTrack == nil)
+                Button("Subir el volumen") { model.changeVolume(by: 0.1) }
+                    .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+                Button("Bajar el volumen") { model.changeVolume(by: -0.1) }
+                    .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                Button("Ir a la canción actual") { model.revealCurrentTrack() }
+                    .keyboardShortcut("l", modifiers: .command)
+                    .disabled(model.player.currentTrack == nil)
+                Divider()
                 Button("Detener") { model.player.stopPlayback() }
                     .keyboardShortcut(".", modifiers: .command)
                     .disabled(model.player.currentTrack == nil)
@@ -85,5 +101,12 @@ struct OctavaApp: App {
         Settings {
             SettingsView(model: model)
         }
+
+        MenuBarExtra(isInserted: $showsMenuBarPlayer) {
+            MiniPlayerView(model: model)
+        } label: {
+            Image(nsImage: MenuBarGlyph.image)
+        }
+        .menuBarExtraStyle(.window)
     }
 }

@@ -1,36 +1,49 @@
 import SwiftUI
 
-/// Ajustes (⌘,). Por ahora: la cuenta de Last.fm.
+/// Ajustes (⌘,): generales y la cuenta de Last.fm, en una sola página
+/// (sin pestañas: la barra de pestañas mostraba el logo de Last.fm en gris).
 struct SettingsView: View {
     let model: AppModel
+    @AppStorage("showsMenuBarPlayer") private var showsMenuBarPlayer = true
 
     var body: some View {
-        // Por ahora hay una sola sección: sin pestañas (la barra de pestañas mostraba el logo en gris).
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Image("LastFMLogo")
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 36, height: 36)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Last.fm")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Theme.ink)
-                    Text("Scrobbling y “Me encanta”")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.secondaryText)
-                }
+        Form {
+            Section("General") {
+                Toggle("Mostrar el mini reproductor en la barra de menú", isOn: $showsMenuBarPlayer)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
 
             LastFMSettings(scrobbler: model.scrobbler)
         }
+        .formStyle(.grouped)
         .frame(width: 520)
+        .fixedSize(horizontal: false, vertical: true)
         .background(Theme.surface)
         .navigationTitle("Ajustes")
         .preferredColorScheme(.light)
+    }
+}
+
+/// Encabezado de la sección de Last.fm, con su logo.
+private struct LastFMHeader: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image("LastFMLogo")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Last.fm")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+                Text("Scrobbling y “Me encanta”")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.secondaryText)
+            }
+        }
+        .textCase(nil)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
     }
 }
 
@@ -38,9 +51,11 @@ private struct LastFMSettings: View {
     @Bindable var scrobbler: Scrobbler
 
     var body: some View {
-        Form {
+        Group {
             Section {
                 account
+            } header: {
+                LastFMHeader()
             }
 
             Section {
@@ -83,8 +98,6 @@ private struct LastFMSettings: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .padding(.vertical, 8)
     }
 
     @ViewBuilder

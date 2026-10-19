@@ -102,8 +102,14 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
       los 14 días, "Me encanta" al marcar favoritos (solo Octava → Last.fm). Clave de sesión en el Llavero; usuario y
       ajustes en UserDefaults. Ajustes (⌘,) y estado en la barra lateral. Credenciales en `Octava/Config/Secrets.swift`
       (ignorado; `preGenCommand` lo crea desde la plantilla). Conexión verificada con la cuenta del usuario.
-- [ ] **6. Pulido** — mini-reproductor o barra de menú (glifo en `docs/brand/octava-menubar.svg`), atajos (barra
-      espaciadora sin chocar con la búsqueda), manejo de errores (carpeta desconectada, archivo movido, cambio de salida de audio), modo oscuro opcional.
+- [x] **6. Pulido** — mini reproductor en la barra de menú (`MenuBarExtra` + `MiniPlayerView`, glifo dibujado en
+      `MenuBarGlyph` como imagen template; se oculta en Ajustes › General). Atajos: espacio = reproducir/pausar (monitor de
+      teclado en `AppModel`; no actúa en campos de texto, controles enfocados, hojas ni Ajustes), ⌥⌘←/→ ±10 s,
+      ⌥⌘↑/↓ volumen, ⌥⌘M silencio, ⌘L ir al disco que suena. Errores: carpeta ausente → `ScanError.folderUnavailable`,
+      no se toca la biblioteca y aparece un aviso (re-escaneo al montar/desmontar volúmenes); faltan > 20 canciones y
+      > 25 % → no se quitan sin confirmación (`withheldMissing`); archivos movidos o renombrados se reconocen por
+      título + artista + duración y conservan estadísticas; canción que no abre → aviso flotante y salta.
+      El cambio de salida de audio ya lo recupera `recoverStoppedEngine` (fase 2). *Pendiente: modo oscuro (opcional).*
 - [ ] **7. Uso diario** — build Release y copia a /Applications.
 
 Actualiza esta lista al cerrar cada fase.

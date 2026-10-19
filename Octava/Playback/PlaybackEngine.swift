@@ -22,6 +22,8 @@ final class PlaybackEngine {
     /// Va atada a esa entrada: si se cambia de canción a mano, deja de aplicar.
     private(set) var stopAfterEntryID: UUID?
     var lastError: String?
+    /// Aviso breve para mostrar en la interfaz (por ejemplo, una canción que no se pudo abrir y se saltó).
+    private(set) var notice: PlaybackNotice?
 
     var repeatMode: RepeatMode = .off {
         didSet { if oldValue != repeatMode { queueDidChange() } }
@@ -205,6 +207,10 @@ final class PlaybackEngine {
         engine.mainMixerNode.outputVolume = isMuted ? 0 : volume
     }
 
+    func dismissNotice(_ id: UUID) {
+        if notice?.id == id { notice = nil }
+    }
+
     /// ¿Se detendrá al terminar la canción actual?
     var stopsAfterCurrent: Bool {
         stopAfterEntryID != nil && stopAfterEntryID == queue.currentEntry?.id
@@ -351,11 +357,18 @@ final class PlaybackEngine {
             onStateChanged?()
         } catch {
             lastError = "No se pudo abrir “\(track.title)”: \(error.localizedDescription)"
+            let missing = !FileManager.default.fileExists(atPath: url.path)
+            let reason = missing ? "No se encontró el archivo de “\(track.title)” (¿se movió o se borró?)."
+                                 : "No se pudo abrir “\(track.title)”."
             consecutiveFailures += 1
             // Saltar a la siguiente (sin repetir, para no entrar en un bucle si fallan todas).
             if consecutiveFailures < queue.items.count, queue.advance() != nil {
+                notice = PlaybackNotice(text: reason + " Se pasó a la siguiente.")
                 startCurrent(autoplay: autoplay)
             } else {
+                notice = PlaybackNotice(text: consecutiveFailures > 1
+                                        ? "No se pudo abrir ninguna canción de la cola. ¿Está conectada la carpeta de música?"
+                                        : reason)
                 consecutiveFailures = 0
                 stop()
             }
@@ -613,4 +626,10 @@ final class PlaybackEngine {
 func scrobbleThreshold(forDuration duration: TimeInterval) -> TimeInterval? {
     guard duration > 30 else { return nil }
     return min(duration / 2, 240)
+}
+
+/// Aviso breve de reproducción (se muestra unos segundos).
+struct PlaybackNotice: Identifiable, Equatable {
+    let id = UUID()
+    let text: String
 }

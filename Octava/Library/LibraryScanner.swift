@@ -14,6 +14,27 @@ actor LibraryScanner {
         var updated = 0
         var removed = 0
         var failed = 0
+        /// Archivos movidos o renombrados dentro de la carpeta: se reconocieron y conservan sus estadísticas.
+        var moved = 0
+        /// Canciones que faltan pero no se quitaron porque eran demasiadas (se pide confirmación).
+        var withheldMissing = 0
+    }
+
+    enum ScanError: LocalizedError {
+        case folderUnavailable
+
+        var errorDescription: String? {
+            "No se encuentra la carpeta de música (¿un disco desconectado?)."
+        }
+    }
+
+    /// Si faltan más canciones que esto (y más del 25 % de la biblioteca), no se quitan sin confirmación:
+    /// suele ser una carpeta desconectada o renombrada, no un borrado real.
+    static let massRemovalMinimum = 20
+    static let massRemovalFraction = 0.25
+
+    static func isMassRemoval(missing: Int, known: Int) -> Bool {
+        missing > massRemovalMinimum && Double(missing) > Double(known) * massRemovalFraction
     }
 
     /// Resultado de leer un archivo, listo para guardar.
@@ -27,6 +48,8 @@ actor LibraryScanner {
 
     private let database: AppDatabase
     private let batchSize = 100
+    /// Rutas conocidas que no aparecieron en este escaneo (candidatas a archivo movido).
+    private var missingPaths = Set<String>()
 
     init(database: AppDatabase) {
         self.database = database
@@ -35,7 +58,15 @@ actor LibraryScanner {
     /// Cantidad de archivos cuyos tags se leen en paralelo.
     private let concurrency = 8
 
-    func scan(root: URL, progress: @escaping @Sendable (Progress) -> Void) async throws -> Summary {
+    func scan(root: URL, allowMassRemoval: Bool = false,
+              progress: @escaping @Sendable (Progress) -> Void) async throws -> Summary {
+        // Carpeta ausente (disco externo desconectado, permiso perdido): no tocar la biblioteca.
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue,
+              (try? FileManager.default.contentsOfDirectory(atPath: root.path)) != nil else {
+            throw ScanError.folderUnavailable
+        }
+
         let rootPath = root.standardizedFileURL.path
         let files = try Self.listMP3Files(in: root)
         var summary = Summary()
@@ -67,6 +98,7 @@ actor LibraryScanner {
             }
         }
 
+        missingPaths = Set(known.keys).subtracting(seen)
         progress(Progress(processed: 0, total: changed.count))
         var pending: [ParsedFile] = []
         var processed = 0
@@ -108,27 +140,39 @@ actor LibraryScanner {
 
             processed += chunk.count
             if pending.count >= batchSize {
-                try await save(pending)
+                summary.moved += try await save(pending)
                 pending.removeAll(keepingCapacity: true)
             }
             progress(Progress(processed: processed, total: changed.count))
         }
         if !pending.isEmpty {
-            try await save(pending)
+            summary.moved += try await save(pending)
         }
+        summary.added -= summary.moved
 
-        summary.removed = try await removeMissing(seen: seen)
+        // Lo que sigue faltando (descontados los movidos) se quita, salvo que sea sospechosamente mucho.
+        if !allowMassRemoval && Self.isMassRemoval(missing: missingPaths.count, known: known.count) {
+            summary.withheldMissing = missingPaths.count
+            try await removeEmptyAlbums()
+        } else {
+            summary.removed = try await removeMissing(seen: seen)
+        }
+        missingPaths.removeAll()
         return summary
     }
 
     // MARK: Guardado
 
-    private func save(_ files: [ParsedFile]) async throws {
+    /// Guarda un lote. Devuelve cuántos archivos eran canciones conocidas que se movieron de lugar.
+    private func save(_ files: [ParsedFile]) async throws -> Int {
         // Discos que quedaron sin carátula en caché y de dónde sacarla.
         struct CoverJob { var albumId: Int64; var artwork: Data?; var folderURL: URL }
+        let missingSnapshot = missingPaths
 
-        let coverJobs: [CoverJob] = try await database.writer.write { db in
+        let (coverJobs, movedFrom): ([CoverJob], [String]) = try await database.writer.write { db in
             var jobs: [Int64: CoverJob] = [:]
+            var available = missingSnapshot
+            var movedFrom: [String] = []
             var touchedAlbums = Set<Int64>()
             for file in files {
                 let tags = file.tags
@@ -141,7 +185,17 @@ actor LibraryScanner {
                                                        year: tags.year,
                                                        folderPath: file.folderRelativePath)
 
-                var track = try Track.filter(Track.Columns.relativePath == file.relativePath).fetchOne(db)
+                var existing = try Track.filter(Track.Columns.relativePath == file.relativePath).fetchOne(db)
+                if existing == nil, !available.isEmpty,
+                   var moved = try Self.movedTrack(db: db, tags: tags, relativePath: file.relativePath,
+                                                   albumTitle: albumTitle, missing: available) {
+                    // Archivo movido o renombrado: se reutiliza la fila (conserva escuchas y favoritos).
+                    available.remove(moved.relativePath)
+                    movedFrom.append(moved.relativePath)
+                    moved.relativePath = file.relativePath
+                    existing = moved
+                }
+                var track = existing
                     ?? Track(relativePath: file.relativePath,
                              fileModifiedAt: file.modifiedAt,
                              title: "",
@@ -178,8 +232,9 @@ actor LibraryScanner {
                     WHERE id = ?
                     """, arguments: [albumId, albumId])
             }
-            return Array(jobs.values)
+            return (Array(jobs.values), movedFrom)
         }
+        missingPaths.subtract(movedFrom)
 
         // Miniaturas fuera de la transacción.
         for job in coverJobs {
@@ -195,6 +250,28 @@ actor LibraryScanner {
                     try db.execute(sql: "UPDATE album SET coverCachePath = ? WHERE id = ?", arguments: [path, job.albumId])
                 }
             }
+        }
+        return movedFrom.count
+    }
+
+    /// Busca, entre las canciones que faltan, una con el mismo título y artista y casi la misma duración.
+    /// Si hay varias, se prefiere la del mismo disco; si no queda una sola, no se adivina.
+    static func movedTrack(db: Database, tags: TrackTags, relativePath: String, albumTitle: String,
+                           missing: Set<String>) throws -> Track? {
+        let title = nonEmpty(tags.title) ?? titleFromFileName(relativePath)
+        let artist = nonEmpty(tags.artist) ?? nonEmpty(tags.albumArtist) ?? "Artista desconocido"
+        let candidates = try Track
+            .filter(Track.Columns.title == title && Track.Columns.artist == artist)
+            .fetchAll(db)
+            .filter { missing.contains($0.relativePath) && abs($0.duration - tags.duration) < 2 }
+        let sameAlbum = candidates.filter { $0.album == albumTitle }
+        if sameAlbum.count == 1 { return sameAlbum[0] }
+        return candidates.count == 1 ? candidates[0] : nil
+    }
+
+    private func removeEmptyAlbums() async throws {
+        try await database.writer.write { db in
+            try db.execute(sql: "DELETE FROM album WHERE id NOT IN (SELECT DISTINCT albumId FROM track WHERE albumId IS NOT NULL)")
         }
     }
 

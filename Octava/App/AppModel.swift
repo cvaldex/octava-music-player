@@ -19,6 +19,12 @@ final class AppModel {
     /// incrementales de la vigilancia de carpeta suelen durar menos de un segundo y no deben parpadear).
     private(set) var showsScanProgress = false
     var errorMessage: String?
+    /// La carpeta de música no está disponible (disco desconectado, permiso perdido). La biblioteca se conserva.
+    private(set) var folderUnavailable = false
+    /// Canciones que faltan en la carpeta y no se quitaron porque eran demasiadas: se pide confirmación.
+    private(set) var withheldMissingCount = 0
+    /// Pedido de mostrar el disco de la canción actual (⌘L); la vista raíz lo observa.
+    private(set) var revealCurrentRequest = 0
 
     /// Al terminar la cola, seguir con una mezcla aleatoria de la colección.
     var continueWithMix: Bool {
@@ -51,6 +57,10 @@ final class AppModel {
     @ObservationIgnored private var pendingRescanTask: Task<Void, Never>?
     @ObservationIgnored private var rescanRequestedDuringScan = false
     @ObservationIgnored private var isRefillingMix = false
+    @ObservationIgnored private var mountObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var keyMonitor: Any?
+    /// Faltantes que el usuario decidió mantener (no se vuelve a preguntar por la misma cantidad).
+    @ObservationIgnored private var keptMissingCount = 0
 
     private enum SettingsKey {
         static let continueWithMix = "continueWithMix"
@@ -119,6 +129,9 @@ final class AppModel {
         library.onFavoriteChanged = { [weak self] track, loved in
             self?.scrobbler.setLoved(loved, track: track)
         }
+        observeVolumes()
+        installKeyMonitor()
+
         // Scrobbles que quedaron pendientes de otra sesión.
         Task { [scrobbler] in await scrobbler.flush() }
 
@@ -166,7 +179,7 @@ final class AppModel {
 
     // MARK: Escaneo
 
-    func rescan() async {
+    func rescan(allowMassRemoval: Bool = false) async {
         guard let folder = musicFolder else { return }
         guard !isScanning else {
             // Llegaron cambios durante un escaneo: repetir al terminar.
@@ -183,15 +196,19 @@ final class AppModel {
 
         let scanner = LibraryScanner(database: database)
         do {
-            let summary = try await scanner.scan(root: folder) { [weak self] progress in
+            let summary = try await scanner.scan(root: folder, allowMassRemoval: allowMassRemoval) { [weak self] progress in
                 Task { @MainActor in self?.scanProgress = progress }
             }
-            if summary.added + summary.updated + summary.removed > 0 || library.albums.isEmpty {
+            folderUnavailable = false
+            withheldMissingCount = summary.withheldMissing == keptMissingCount ? 0 : summary.withheldMissing
+            if summary.added + summary.updated + summary.removed + summary.moved > 0 || library.albums.isEmpty {
                 library.reload()
                 // Los datos de la cola (títulos, discos) se actualizan sin cortar el audio.
                 let library = self.library
                 player.refreshTracks { library.tracks(ids: [$0]).first }
             }
+        } catch LibraryScanner.ScanError.folderUnavailable {
+            folderUnavailable = true
         } catch {
             errorMessage = "No se pudo escanear la carpeta: \(error.localizedDescription)"
         }
@@ -203,6 +220,31 @@ final class AppModel {
         if rescanRequestedDuringScan {
             rescanRequestedDuringScan = false
             await rescan()
+        }
+    }
+
+    /// Confirmado por el usuario: quitar de la biblioteca las canciones que ya no están en la carpeta.
+    func removeMissingTracks() async {
+        withheldMissingCount = 0
+        await rescan(allowMassRemoval: true)
+    }
+
+    /// Mantenerlas (por ejemplo, porque falta un disco que se reconectará): no volver a preguntar por las mismas.
+    func keepMissingTracks() {
+        keptMissingCount = withheldMissingCount
+        withheldMissingCount = 0
+    }
+
+    /// Al conectar o desconectar un disco, revisar la carpeta (vuelve sola cuando se reconecta el disco).
+    private func observeVolumes() {
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
+            mountObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.musicFolder != nil else { return }
+                    Task { await self.rescan() }
+                }
+            })
         }
     }
 
@@ -507,6 +549,49 @@ final class AppModel {
         return library.tracks
             .filter { MixBuilder.isForgotten($0, now: now) }
             .sorted { ($0.lastPlayedAt ?? .distantPast) < ($1.lastPlayedAt ?? .distantPast) }
+    }
+
+    // MARK: Atajos
+
+    /// Avanza o retrocede unos segundos en la canción actual.
+    func skip(by seconds: TimeInterval) {
+        guard player.currentTrack != nil else { return }
+        player.seek(to: max(0, min(player.duration - 1, player.currentTime + seconds)))
+    }
+
+    func changeVolume(by delta: Float) {
+        setVolume(player.volume + delta)
+    }
+
+    /// Muestra el disco de la canción que suena (⌘L).
+    func revealCurrentTrack() {
+        guard player.currentTrack != nil else { return }
+        revealCurrentRequest += 1
+    }
+
+    /// Barra espaciadora: reproducir o pausar, salvo que se esté escribiendo en un campo o haya una hoja abierta.
+    private func installKeyMonitor() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, Self.isPlainSpace(event), Self.spaceIsFree(in: event.window) else { return event }
+                self.player.togglePlayPause()
+                return nil
+            }
+        }
+    }
+
+    private static func isPlainSpace(_ event: NSEvent) -> Bool {
+        event.keyCode == 49 && event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty
+    }
+
+    private static func spaceIsFree(in window: NSWindow?) -> Bool {
+        guard let window, window.attachedSheet == nil, window.sheetParent == nil, !window.isModalPanel else { return false }
+        // Escribiendo en un campo de texto (búsqueda, editor de tags, nombre de lista): el espacio es un espacio.
+        if window.firstResponder is NSText || window.firstResponder is NSTextField { return false }
+        // Con el teclado sobre un botón, interruptor o deslizador, el espacio lo activa (acceso con teclado completo).
+        if window.firstResponder is NSButton || window.firstResponder is NSSlider
+            || window.firstResponder is NSSegmentedControl { return false }
+        return window.title != "Ajustes"
     }
 
     // MARK: Last.fm

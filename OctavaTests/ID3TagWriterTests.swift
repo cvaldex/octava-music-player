@@ -314,3 +314,91 @@ final class TagEditFlowTests: XCTestCase {
         XCTAssertFalse(database.hasTagEdits)
     }
 }
+
+/// Escáner ante carpetas desconectadas, borrados masivos y archivos movidos (sobre carpetas temporales).
+final class ScannerResilienceTests: XCTestCase {
+    private func makeFile(_ url: URL, title: String, album: String = "Disco", frames: Int = 200) throws {
+        var audio: [UInt8] = []
+        for _ in 0..<frames { audio += [0xFF, 0xFB, 0x90, 0x64] + [UInt8](repeating: 0, count: 413) }
+        let data = try ID3TagWriter.apply(TagChanges(text: [.title: title, .artist: "Banda", .album: album]), to: Data(audio))
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: url)
+    }
+
+    private func tempRoot() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("octava-scan-\(UUID().uuidString)")
+    }
+
+    func testMissingFolderKeepsLibrary() async throws {
+        let root = tempRoot()
+        try makeFile(root.appendingPathComponent("Banda/Disco/1.mp3"), title: "Uno")
+        let database = try AppDatabase.makeEmpty()
+        let scanner = LibraryScanner(database: database)
+        _ = try await scanner.scan(root: root) { _ in }
+
+        // "Se desconecta el disco".
+        try FileManager.default.removeItem(at: root)
+        do {
+            _ = try await scanner.scan(root: root) { _ in }
+            XCTFail("Debió avisar que la carpeta no está")
+        } catch LibraryScanner.ScanError.folderUnavailable {
+            // Esperado.
+        }
+        let count = try await database.writer.read { db in try Track.fetchCount(db) }
+        XCTAssertEqual(count, 1, "la biblioteca no se toca")
+    }
+
+    func testMassRemovalNeedsConfirmation() async throws {
+        let root = tempRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        for n in 1...30 { try makeFile(root.appendingPathComponent("Banda/A/\(n).mp3"), title: "A\(n)", frames: 20) }
+        for n in 1...5 { try makeFile(root.appendingPathComponent("Banda/B/\(n).mp3"), title: "B\(n)", frames: 20) }
+        let database = try AppDatabase.makeEmpty()
+        let scanner = LibraryScanner(database: database)
+        _ = try await scanner.scan(root: root) { _ in }
+
+        try FileManager.default.removeItem(at: root.appendingPathComponent("Banda/A"))
+        let summary = try await scanner.scan(root: root) { _ in }
+        XCTAssertEqual(summary.withheldMissing, 30)
+        XCTAssertEqual(summary.removed, 0)
+        var count = try await database.writer.read { db in try Track.fetchCount(db) }
+        XCTAssertEqual(count, 35)
+
+        let confirmed = try await scanner.scan(root: root, allowMassRemoval: true) { _ in }
+        XCTAssertEqual(confirmed.removed, 30)
+        count = try await database.writer.read { db in try Track.fetchCount(db) }
+        XCTAssertEqual(count, 5)
+
+        XCTAssertFalse(LibraryScanner.isMassRemoval(missing: 3, known: 10), "pocas canciones: se quitan sin preguntar")
+    }
+
+    func testMovedFileKeepsStatistics() async throws {
+        let root = tempRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try makeFile(root.appendingPathComponent("Banda/Disco/01 Uno.mp3"), title: "Uno")
+        try makeFile(root.appendingPathComponent("Banda/Disco/02 Dos.mp3"), title: "Dos")
+        let database = try AppDatabase.makeEmpty()
+        let scanner = LibraryScanner(database: database)
+        _ = try await scanner.scan(root: root) { _ in }
+        try await database.writer.write { db in
+            try db.execute(sql: "UPDATE track SET playCount = 9, isFavorite = 1 WHERE title = 'Uno'")
+        }
+
+        // Se renombra la carpeta del disco y el archivo.
+        try FileManager.default.moveItem(at: root.appendingPathComponent("Banda/Disco"),
+                                         to: root.appendingPathComponent("Banda/Disco (1998)"))
+        try FileManager.default.moveItem(at: root.appendingPathComponent("Banda/Disco (1998)/01 Uno.mp3"),
+                                         to: root.appendingPathComponent("Banda/Disco (1998)/1-01 Uno.mp3"))
+        let summary = try await scanner.scan(root: root) { _ in }
+        XCTAssertEqual(summary.moved, 2)
+        XCTAssertEqual(summary.added, 0)
+        XCTAssertEqual(summary.removed, 0)
+
+        let tracks = try await database.writer.read { db in try Track.order(Column("title")).fetchAll(db) }
+        XCTAssertEqual(tracks.count, 2)
+        let uno = try XCTUnwrap(tracks.first { $0.title == "Uno" })
+        XCTAssertEqual(uno.relativePath, "Banda/Disco (1998)/1-01 Uno.mp3")
+        XCTAssertEqual(uno.playCount, 9)
+        XCTAssertTrue(uno.isFavorite)
+    }
+}
