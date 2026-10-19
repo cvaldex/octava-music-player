@@ -46,6 +46,8 @@ struct OctavaApp: App {
                     .keyboardShortcut(.rightArrow, modifiers: .command)
                 Button("Anterior") { model.player.previous() }
                     .keyboardShortcut(.leftArrow, modifiers: .command)
+                Button(model.player.isMuted ? "Quitar el silencio" : "Silenciar") { model.player.toggleMute() }
+                    .keyboardShortcut("m", modifiers: [.command, .option])
                 Button("Detener") { model.player.stopPlayback() }
                     .keyboardShortcut(".", modifiers: .command)
                     .disabled(model.player.currentTrack == nil)

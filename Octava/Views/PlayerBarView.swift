@@ -150,15 +150,26 @@ struct PlayerBarView: View {
             .help(showQueue ? "Ocultar la cola" : "Mostrar la cola")
             .accessibilityLabel("Cola de reproducción")
 
-            Image(systemName: "speaker.wave.2.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.secondaryText)
-                .accessibilityHidden(true)
+            Button { player.toggleMute() } label: {
+                Image(systemName: volumeIcon(player))
+                    .font(.system(size: 13))
+                    .frame(width: 18, alignment: .leading)
+            }
+            .buttonStyle(IconButtonStyle(tint: player.isMuted ? Theme.accent : Theme.secondaryText))
+            .help(player.isMuted ? "Quitar el silencio" : "Silenciar")
+            .accessibilityLabel(player.isMuted ? "Quitar el silencio" : "Silenciar")
             Slider(value: Binding(get: { player.volume }, set: { model.setVolume($0) }), in: 0...1)
                 .frame(width: 90)
-                .tint(Theme.ink)
+                .tint(player.isMuted ? Theme.mutedIcon : Theme.ink)
                 .accessibilityLabel("Volumen")
         }
+    }
+
+    private func volumeIcon(_ player: PlaybackEngine) -> String {
+        if player.isMuted || player.volume == 0 { return "speaker.slash.fill" }
+        if player.volume < 0.34 { return "speaker.wave.1.fill" }
+        if player.volume < 0.67 { return "speaker.wave.2.fill" }
+        return "speaker.wave.3.fill"
     }
 
     private func album(for track: Track) -> Album? {
@@ -191,6 +202,8 @@ struct SeekBar: View {
     let onSeek: (Double) -> Void
 
     @State private var dragFraction: Double?
+    /// Clic en la duración: alterna entre la duración total y el tiempo restante.
+    @AppStorage("showsRemainingTime") private var showsRemaining = false
 
     var body: some View {
         let fraction = dragFraction ?? (duration > 0 ? min(1, current / duration) : 0)
@@ -228,8 +241,16 @@ struct SeekBar: View {
                 )
             }
             .frame(height: 16)
-            Text(formatDuration(duration))
-                .frame(width: 40, alignment: .leading)
+            Button {
+                showsRemaining.toggle()
+            } label: {
+                let shown = dragFraction.map { $0 * duration } ?? current
+                Text(showsRemaining ? "-" + formatDuration(max(0, duration - shown)) : formatDuration(duration))
+                    .frame(width: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(showsRemaining ? "Mostrar la duración total" : "Mostrar el tiempo restante")
         }
         .font(Theme.mono(11))
         .foregroundStyle(Theme.secondaryText)

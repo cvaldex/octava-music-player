@@ -15,6 +15,8 @@ final class PlaybackEngine {
     private(set) var isPlaying = false
     private(set) var currentTime: TimeInterval = 0
     private(set) var volume: Float = 0.8
+    /// Silencio: el volumen elegido se conserva para volver a él.
+    private(set) var isMuted = false
     private(set) var source: QueueSource = .mix
     /// Entrada de la cola tras la cual se detiene la reproducción ("Detener al terminar esta canción").
     /// Va atada a esa entrada: si se cambia de canción a mano, deja de aplicar.
@@ -194,7 +196,13 @@ final class PlaybackEngine {
 
     func setVolume(_ value: Float) {
         volume = min(1, max(0, value))
+        isMuted = false
         engine.mainMixerNode.outputVolume = volume
+    }
+
+    func toggleMute() {
+        isMuted.toggle()
+        engine.mainMixerNode.outputVolume = isMuted ? 0 : volume
     }
 
     /// ¿Se detendrá al terminar la canción actual?
