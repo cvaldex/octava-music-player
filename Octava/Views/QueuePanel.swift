@@ -4,6 +4,9 @@ import SwiftUI
 /// y el ajuste de seguir con una mezcla al terminar.
 struct QueuePanel: View {
     @Environment(AppModel.self) private var model
+    @Environment(Navigator.self) private var navigator
+    @State private var selection = Set<UUID>()
+    @State private var isDropTargeted = false
 
     var body: some View {
         let player = model.player
@@ -97,24 +100,32 @@ struct QueuePanel: View {
             }
 
             if upcoming.isEmpty {
-                Text(player.queue.isEmpty
-                     ? "La cola está vacía. Reproduce un disco o una mezcla aleatoria."
-                     : "No hay más canciones en la cola.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.secondaryText)
-                    .padding(.horizontal, 20)
-                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(player.queue.isEmpty
+                         ? "La cola está vacía. Reproduce un disco o una mezcla, o arrastra canciones aquí."
+                         : "No hay más canciones en la cola. Arrastra canciones aquí para agregarlas.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.secondaryText)
+                        .padding(.horizontal, 20)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(isDropTargeted ? Theme.accentTint : Color.clear)
+                .contentShape(Rectangle())
+                .onDrop(of: [.plainText], isTargeted: $isDropTargeted) { providers in
+                    Task {
+                        let ids = await TrackDrag.loadIDs(from: providers)
+                        model.insertInQueue(trackIDs: ids, at: 0)
+                    }
+                    return true
+                }
             } else {
-                List {
+                // Selección nativa de la lista: así arrastrar desde el ícono ≡ reordena (un gesto de doble clic
+                // sobre la fila lo impedía), y el doble clic se maneja como acción principal.
+                List(selection: $selection) {
                     ForEach(upcoming) { entry in
                         QueueRow(track: entry.track)
-                            .contentShape(Rectangle())
-                            .onTapGesture(count: 2) { player.jump(to: entry.id) }
-                            .contextMenu {
-                                Button("Reproducir ahora") { player.jump(to: entry.id) }
-                                Button("Quitar de la cola") { player.removeEntry(entry.id) }
-                                AddToPlaylistMenu(tracks: [entry.track], model: model)
-                            }
+                            .tag(entry.id)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
@@ -124,10 +135,26 @@ struct QueuePanel: View {
                     .onDelete { offsets in
                         player.removeUpcoming(atOffsets: offsets)
                     }
+                    // Canciones arrastradas desde tablas o discos: se insertan donde se sueltan.
+                    .onInsert(of: [.plainText]) { offset, providers in
+                        Task {
+                            let ids = await TrackDrag.loadIDs(from: providers)
+                            model.insertInQueue(trackIDs: ids, at: offset)
+                        }
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .environment(\.defaultMinListRowHeight, 40)
+                .contextMenu(forSelectionType: UUID.self) { ids in
+                    queueMenu(ids: ids, upcoming: upcoming)
+                } primaryAction: { ids in
+                    if let id = upcoming.first(where: { ids.contains($0.id) })?.id { player.jump(to: id) }
+                }
+                .onDeleteCommand {
+                    for id in selection { player.removeEntry(id) }
+                    selection.removeAll()
+                }
             }
 
             Divider().overlay(Theme.separator)
@@ -153,6 +180,31 @@ struct QueuePanel: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.queuePanel)
+    }
+
+    /// Mismas opciones que en las tablas y discos, más las propias de la cola.
+    @ViewBuilder
+    private func queueMenu(ids: Set<UUID>, upcoming: [QueueEntry]) -> some View {
+        let entries = upcoming.filter { ids.contains($0.id) }
+        // Clic derecho fuera de la selección: esa fila pasa a ser la selección.
+        let _ = selectLater(ids)
+        if let first = entries.first {
+            let player = model.player
+            if entries.count == 1 {
+                Button("Reproducir ahora") { player.jump(to: first.id) }
+            }
+            Button(entries.count == 1 ? "Quitar de la cola" : "Quitar \(entries.count) canciones de la cola") {
+                for entry in entries { player.removeEntry(entry.id) }
+                selection.subtract(entries.map(\.id))
+            }
+            Divider()
+            TrackActionsMenu(tracks: { entries.map(\.track) }, model: model, navigator: navigator, count: entries.count)
+        }
+    }
+
+    private func selectLater(_ ids: Set<UUID>) {
+        guard !ids.isEmpty, !ids.isSubset(of: selection) else { return }
+        DispatchQueue.main.async { selection = ids }
     }
 }
 

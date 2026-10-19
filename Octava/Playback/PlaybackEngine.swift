@@ -272,6 +272,14 @@ final class PlaybackEngine {
         if wasEmpty { startCurrent(autoplay: true) } else { queueDidChange() }
     }
 
+    /// Inserta canciones en una posición de "A continuación" (arrastrar y soltar en la cola).
+    func insertUpcoming(_ tracks: [Track], at offset: Int) {
+        guard !tracks.isEmpty else { return }
+        let wasEmpty = queue.isEmpty
+        queue.insertUpcoming(tracks, at: offset)
+        if wasEmpty { startCurrent(autoplay: true) } else { queueDidChange() }
+    }
+
     func addToQueue(_ tracks: [Track]) {
         let wasEmpty = queue.isEmpty
         queue.append(tracks)

@@ -102,10 +102,9 @@ struct OctavaApp: App {
             SettingsView(model: model)
         }
 
-        MenuBarExtra(isInserted: $showsMenuBarPlayer) {
+        // El título es el texto que aparece al dejar el puntero sobre el ícono.
+        MenuBarExtra("Octava Music Player", image: "MenuBarGlyph", isInserted: $showsMenuBarPlayer) {
             MiniPlayerView(model: model)
-        } label: {
-            Image(nsImage: MenuBarGlyph.image)
         }
         .menuBarExtraStyle(.window)
     }

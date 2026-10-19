@@ -3,6 +3,7 @@ import SwiftUI
 /// Detalle de un disco: carátula, datos, botones y lista de canciones.
 struct AlbumDetailView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Navigator.self) private var navigator
     let album: Album
 
     @State private var tracks: [Track] = []
@@ -23,7 +24,8 @@ struct AlbumDetailView: View {
                           onToggleFavorite: { track in
                               model.library.toggleFavorite(track)
                           },
-                          model: model)
+                          model: model,
+                          navigator: navigator)
             }
             .padding(.horizontal, 32)
             .padding(.top, 20)
@@ -153,7 +155,8 @@ struct AlbumDetailView: View {
 }
 
 /// Lista de canciones de un disco.
-/// Clic: selecciona · doble clic o Enter: reproduce desde ahí · ↑/↓: mueve la selección.
+/// Clic: selecciona (⌘ suma o quita, ⇧ selecciona un rango) · doble clic o Enter: reproduce desde ahí ·
+/// ↑/↓: mueve la selección · clic derecho: selecciona y abre el menú · arrastrar: lleva las canciones a la cola.
 struct TrackList: View {
     let tracks: [Track]
     let currentTrackId: Int64?
@@ -161,14 +164,20 @@ struct TrackList: View {
     let onPlayNext: (Track) -> Void
     let onAddToQueue: (Track) -> Void
     let onToggleFavorite: (Track) -> Void
-    /// Para el submenú "Agregar a lista" (se pasa explícito; ver nota de TrackTable).
+    /// Para los menús (se pasa explícito; ver nota de TrackTable).
     let model: AppModel
+    var navigator: Navigator?
 
-    @State private var selectedID: Int64?
+    @State private var selection = Set<Int64>()
+    @State private var anchorIndex: Int?
+    @State private var hoveredID: Int64?
+    @State private var rightClick = RightClickWatcher()
     @FocusState private var isFocused: Bool
 
-    private var selectedIndex: Int? {
-        tracks.firstIndex { $0.id != nil && $0.id == selectedID }
+    /// Índice de la última fila seleccionada (para el teclado).
+    private var focusIndex: Int? {
+        if let anchorIndex, tracks.indices.contains(anchorIndex) { return anchorIndex }
+        return tracks.firstIndex { $0.id.map(selection.contains) ?? false }
     }
 
     var body: some View {
@@ -191,21 +200,20 @@ struct TrackList: View {
                 TrackRow(number: track.trackNumber ?? index + 1,
                          track: track,
                          isCurrent: track.id == currentTrackId,
-                         isSelected: track.id != nil && track.id == selectedID,
+                         isSelected: track.id.map(selection.contains) ?? false,
                          onToggleFavorite: { onToggleFavorite(track) })
                     .onTapGesture(count: 2) { onPlay(index) }
-                    .simultaneousGesture(TapGesture().onEnded {
-                        selectedID = track.id
-                        isFocused = true
-                    })
+                    .simultaneousGesture(TapGesture().onEnded { click(index) })
+                    .onHover { inside in
+                        if inside { hoveredID = track.id } else if hoveredID == track.id { hoveredID = nil }
+                    }
+                    .onDrag { TrackDrag.provider(for: targets(for: track)) }
                     .contextMenu {
-                        Button("Reproducir desde aquí") { onPlay(index) }
-                        Button("Reproducir a continuación") { onPlayNext(track) }
-                        Button("Agregar al final de la cola") { onAddToQueue(track) }
-                        AddToPlaylistMenu(tracks: [track], model: model)
-                        Divider()
-                        Button("Editar tags…") { model.editTags([track]) }
-                        Button(track.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos") { onToggleFavorite(track) }
+                        let count = targets(for: track).count
+                        if count == 1 {
+                            Button("Reproducir desde aquí") { onPlay(index) }
+                        }
+                        TrackActionsMenu(tracks: { targets(for: track) }, model: model, navigator: navigator, count: count)
                     }
             }
         }
@@ -215,21 +223,54 @@ struct TrackList: View {
         .onKeyPress(.upArrow) { moveSelection(by: -1) }
         .onKeyPress(.downArrow) { moveSelection(by: 1) }
         .onKeyPress(.return) {
-            guard let index = selectedIndex else { return .ignored }
+            guard let index = focusIndex else { return .ignored }
             onPlay(index)
             return .handled
         }
+        .onAppear {
+            rightClick.onRightClick = { [self] in
+                // Clic derecho sobre una fila que no está seleccionada: pasa a ser la selección (gris).
+                guard let id = hoveredID, !selection.contains(id) else { return }
+                selection = [id]
+                anchorIndex = tracks.firstIndex { $0.id == id }
+            }
+            rightClick.start()
+        }
+        .onDisappear { rightClick.stop() }
+    }
+
+    /// Las canciones sobre las que actúa el menú o el arrastre: la selección si incluye la fila; si no, solo la fila.
+    private func targets(for track: Track) -> [Track] {
+        guard let id = track.id, selection.contains(id), selection.count > 1 else { return [track] }
+        return tracks.filter { $0.id.map(selection.contains) ?? false }
+    }
+
+    private func click(_ index: Int) {
+        guard let id = tracks[index].id else { return }
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.command) {
+            if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+            anchorIndex = index
+        } else if flags.contains(.shift), let anchor = anchorIndex {
+            let range = min(anchor, index)...max(anchor, index)
+            selection = Set(tracks[range].compactMap(\.id))
+        } else {
+            selection = [id]
+            anchorIndex = index
+        }
+        isFocused = true
     }
 
     private func moveSelection(by delta: Int) -> KeyPress.Result {
         guard !tracks.isEmpty else { return .ignored }
         let next: Int
-        if let index = selectedIndex {
+        if let index = focusIndex {
             next = min(max(0, index + delta), tracks.count - 1)
         } else {
             next = delta > 0 ? 0 : tracks.count - 1
         }
-        selectedID = tracks[next].id
+        selection = tracks[next].id.map { [$0] } ?? []
+        anchorIndex = next
         return .handled
     }
 }

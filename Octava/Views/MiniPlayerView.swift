@@ -143,7 +143,7 @@ enum MenuBarGlyph {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = "Octava"
+        image.accessibilityDescription = "Octava Music Player"
         return image
     }()
 }

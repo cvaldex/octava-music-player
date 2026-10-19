@@ -39,7 +39,8 @@ enum SidebarItem: Hashable, Identifiable {
         }
     }
 
-    static let library: [SidebarItem] = [.albums, .artists, .songs, .genres, .favorites]
+    // Géneros no se muestra (decisión del usuario); la vista sigue disponible por si se quiere recuperar.
+    static let library: [SidebarItem] = [.albums, .artists, .songs, .favorites]
     static let smartLists: [SidebarItem] = [.mostPlayed, .forgotten]
 }
 

@@ -348,6 +348,11 @@ final class AppModel {
         player.addToQueue(tracks)
     }
 
+    /// Canciones soltadas en la cola: se insertan en esa posición de "A continuación".
+    func insertInQueue(trackIDs: [Int64], at offset: Int) {
+        player.insertUpcoming(library.tracks(ids: trackIDs), at: offset)
+    }
+
     func playNext(album: Album) {
         player.playNext(library.tracks(for: album))
     }

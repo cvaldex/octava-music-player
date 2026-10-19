@@ -119,6 +119,18 @@ struct PlayQueue: Equatable {
         items.insert(contentsOf: entries, at: currentIndex + 1)
     }
 
+    /// Inserta canciones en "A continuación", en la posición `offset` (0 = justo después de la actual).
+    mutating func insertUpcoming(_ tracks: [Track], at offset: Int) {
+        let entries = tracks.map(QueueEntry.init(track:))
+        guard let currentIndex else {
+            items.insert(contentsOf: entries, at: min(max(0, offset), items.count))
+            self.currentIndex = items.isEmpty ? nil : 0
+            return
+        }
+        let position = min(max(currentIndex + 1, currentIndex + 1 + offset), items.count)
+        items.insert(contentsOf: entries, at: position)
+    }
+
     /// Agrega canciones al final de la cola.
     mutating func append(_ tracks: [Track]) {
         items.append(contentsOf: tracks.map(QueueEntry.init(track:)))

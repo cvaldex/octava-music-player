@@ -19,6 +19,8 @@ struct AlbumGrid: View {
                               isPlaying: album.id != nil && model.player.currentTrack?.albumId == album.id)
                 }
                 .buttonStyle(.plain)
+                // Arrastrar un disco a la cola agrega todas sus canciones.
+                .onDrag { TrackDrag.provider(for: model.library.tracks(for: album)) }
                 .contextMenu { AlbumContextMenu(album: album, model: model, navigator: navigator) }
             }
         }

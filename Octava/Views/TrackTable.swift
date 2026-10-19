@@ -29,7 +29,7 @@ struct TrackTable: View {
         let currentID = model.player.currentTrack?.id
         let library = model.library
 
-        Table(rows, selection: $selection, sortOrder: $sortOrder) {
+        Table(of: Track.self, selection: $selection, sortOrder: $sortOrder) {
             // Ícono fijo: una animación dentro de la tabla la obligaba a actualizarse completa muchas veces por
             // segundo y, con miles de filas, la app dejaba de responder.
             TableColumn("") { (track: Track) in
@@ -93,6 +93,12 @@ struct TrackTable: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .width(min: 52, ideal: 56)
+        } rows: {
+            // Cada fila se puede arrastrar a la cola (con varias seleccionadas, se arrastran todas).
+            ForEach(rows) { track in
+                TableRow(track)
+                    .itemProvider { TrackDrag.provider(for: [track]) }
+            }
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
         .font(.system(size: 13))
@@ -114,25 +120,17 @@ struct TrackTable: View {
     @ViewBuilder
     private func menu(for ids: Set<Track.ID>, rows: [Track]) -> some View {
         let selected = rows.filter { ids.contains($0.id) }
+        // Clic derecho sobre una fila no seleccionada: queda seleccionada (gris), como con el clic izquierdo.
+        let _ = selectLater(ids)
         if !selected.isEmpty {
             Button(selected.count == 1 ? "Reproducir" : "Reproducir desde aquí") { play(ids, rows: rows) }
-            Button("Reproducir a continuación") { model.playNext(selected) }
-            Button("Agregar al final de la cola") { model.addToQueue(selected) }
-            AddToPlaylistMenu(tracks: selected, model: model)
-            Button(selected.count == 1 ? "Editar tags…" : "Editar tags de \(selected.count) canciones…") {
-                model.editTags(selected)
-            }
-            if selected.count == 1, let track = selected.first {
-                Divider()
-                if let album = model.library.album(id: track.albumId) {
-                    Button("Ir al disco") { navigator.show(.album(album)) }
-                    Button("Ir al artista") { navigator.show(.artist(album.albumArtist)) }
-                }
-                Button(model.library.isFavorite(track) ? "Quitar de favoritos" : "Agregar a favoritos") {
-                    model.library.toggleFavorite(track)
-                }
-            }
+            TrackActionsMenu(tracks: { selected }, model: model, navigator: navigator, count: selected.count)
         }
+    }
+
+    private func selectLater(_ ids: Set<Track.ID>) {
+        guard !ids.isEmpty, !ids.isSubset(of: selection) else { return }
+        DispatchQueue.main.async { selection = ids }
     }
 
     /// Reproduce la tabla (en el orden visible) desde la primera canción seleccionada.

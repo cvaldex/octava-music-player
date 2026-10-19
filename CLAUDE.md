@@ -183,3 +183,9 @@ Actualiza esta lista al cerrar cada fase.
   la canción. Los discos se agrupan por `Track.groupingArtist` (TPE1); listas, barra, cola, Centro de Control y
   Last.fm usan `Track.performer` (TPE2, o TPE1 si falta o es un genérico tipo "Various Artists"). Migración `v6`
   fuerza a releer para reagrupar. Los nombres de las columnas no cambian (siguen el estándar ID3).
+- Acciones de canciones: `TrackActionsMenu` (Views/TrackActions.swift) es el menú común de tablas, discos y cola. El
+  arrastre usa `TrackDrag` (texto plano "octava-tracks:<ids>"); la cola lo recibe con `.onInsert` y
+  `AppModel.insertInQueue(trackIDs:at:)`. La lista de un disco tiene selección múltiple propia (⌘/⇧) y un
+  `RightClickWatcher` que marca la fila bajo el puntero al hacer clic derecho. En la cola no poner `onTapGesture` en las
+  filas: bloqueaba el arrastre del asa para reordenar.
+- La sección Géneros se quitó de la barra lateral (a pedido); el filtro por género sigue en "Nueva mezcla".
