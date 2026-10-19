@@ -79,5 +79,9 @@ struct OctavaApp: App {
                        isOn: Binding(get: { model.continueWithMix }, set: { model.continueWithMix = $0 }))
             }
         }
+
+        Settings {
+            SettingsView(model: model)
+        }
     }
 }

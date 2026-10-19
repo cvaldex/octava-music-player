@@ -40,6 +40,8 @@ final class PlaybackEngine {
     @ObservationIgnored var onQueueFinished: (() -> [Track]?)?
     /// Algo cambió y conviene guardar el estado para reanudar al abrir.
     @ObservationIgnored var onStateChanged: (() -> Void)?
+    /// Cada cuarto de segundo mientras suena (para el scrobbler).
+    @ObservationIgnored var onTick: (() -> Void)?
     /// Carátula de una pista para el Centro de Control.
     @ObservationIgnored var artworkProvider: ((Track) -> NSImage?)?
 
@@ -578,6 +580,7 @@ final class PlaybackEngine {
         }
         updateCurrentTimeFromPlayer()
         prescheduleNextIfNeeded()
+        onTick?()
         ticks += 1
         if ticks % 40 == 0 { // cada 10 s
             onStateChanged?()

@@ -116,6 +116,13 @@ struct PlayerBarView: View {
         }
     }
 
+    private var scrobbleHelp: String {
+        let scrobbler = model.scrobbler
+        if !scrobbler.isConnected { return "Conecta Last.fm en Ajustes (⌘,) para registrar lo que escuchas" }
+        if !scrobbler.isEnabled { return "El scrobbling está en pausa (Ajustes › Last.fm)" }
+        return scrobbler.currentScrobbled ? "Registrada en Last.fm" : "Se registrará en Last.fm al llegar a la marca"
+    }
+
     private var trailing: some View {
         let player = model.player
         let threshold = scrobbleThreshold(forDuration: player.duration)
@@ -125,14 +132,15 @@ struct PlayerBarView: View {
             if player.currentTrack != nil, let threshold, let remaining {
                 HStack(spacing: 7) {
                     ScrobbleRing(fraction: 1 - remaining / threshold)
-                    Text(remaining > 0 ? "scrobble en \(formatDuration(remaining))" : "listo para scrobble")
+                    Text(remaining > 0 ? "scrobble en \(formatDuration(remaining))"
+                         : (model.scrobbler.isConnected && model.scrobbler.currentScrobbled ? "en Last.fm ✓" : "listo para scrobble"))
                         .font(Theme.mono(11))
                 }
                 .foregroundStyle(Theme.accentText)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(Theme.accent.opacity(0.09), in: Capsule())
-                .help("El envío a Last.fm llega en la fase 5")
+                .help(scrobbleHelp)
             }
 
             Button { showQueue.toggle() } label: {

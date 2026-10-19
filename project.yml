@@ -10,6 +10,8 @@ options:
     macOS: "14.0"
   createIntermediateGroups: true
   developmentLanguage: es
+  # Credenciales de Last.fm: si no existe Octava/Config/Secrets.swift (ignorado por git), se crea desde la plantilla.
+  preGenCommand: "[ -f Octava/Config/Secrets.swift ] || cp Octava/Config/Secrets.example.swift Octava/Config/Secrets.swift"
 
 settings:
   base:
@@ -31,6 +33,8 @@ targets:
     platform: macOS
     sources:
       - path: Octava
+        excludes:
+          - "Config/Secrets.example.swift"
     dependencies:
       - package: GRDB
     settings:

@@ -8,6 +8,9 @@ import Observation
 @MainActor
 @Observable
 final class LibraryStore {
+    /// Se llama al marcar o desmarcar un favorito (sincroniza "Me encanta" con Last.fm).
+    @ObservationIgnored var onFavoriteChanged: ((Track, Bool) -> Void)?
+
     private(set) var albums: [Album] = []
     /// Todas las canciones, en orden de artista, disco y pista.
     private(set) var tracks: [Track] = []
@@ -147,7 +150,7 @@ final class LibraryStore {
             guard let updated else { return }
             if updated.isFavorite { favoriteIDs.insert(id) } else { favoriteIDs.remove(id) }
             replaceInCache(updated)
-            // Fase 5: sincronizar con track.love / track.unlove de Last.fm.
+            onFavoriteChanged?(updated, updated.isFavorite)
             revision += 1
         } catch {
             print("Octava: no se pudo cambiar el favorito: \(error)")

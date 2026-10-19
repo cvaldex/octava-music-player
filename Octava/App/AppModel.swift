@@ -10,6 +10,7 @@ final class AppModel {
     let library: LibraryStore
     let playlists: PlaylistStore
     let player: PlaybackEngine
+    let scrobbler: Scrobbler
 
     private(set) var musicFolder: URL?
     private(set) var isScanning = false
@@ -68,6 +69,7 @@ final class AppModel {
         library = LibraryStore(database: database)
         playlists = PlaylistStore(database: database)
         player = PlaybackEngine()
+        scrobbler = Scrobbler(database: database)
 
         let defaults = UserDefaults.standard
         continueWithMix = defaults.bool(forKey: SettingsKey.continueWithMix)
@@ -82,11 +84,13 @@ final class AppModel {
 
         player.onTrackFinished = { [weak self] track in
             self?.library.markPlayed(track)
+            self?.scrobbler.trackFinished()
         }
         player.onQueueFinished = { [weak self] in
             self?.continuationTracks()
         }
         player.onStateChanged = { [weak self] in
+            self?.updateScrobbler()
             self?.refillMixIfNeeded()
             self?.savePlaybackState()
         }
@@ -108,6 +112,15 @@ final class AppModel {
         playlists.reload()
         canUndoTagEdit = database.hasTagEdits
         restorePlaybackState()
+
+        player.onTick = { [weak self] in
+            self?.updateScrobbler()
+        }
+        library.onFavoriteChanged = { [weak self] track, loved in
+            self?.scrobbler.setLoved(loved, track: track)
+        }
+        // Scrobbles que quedaron pendientes de otra sesión.
+        Task { [scrobbler] in await scrobbler.flush() }
 
         // Escaneo incremental al abrir: solo relee lo nuevo o modificado.
         if musicFolder != nil {
@@ -494,6 +507,15 @@ final class AppModel {
         return library.tracks
             .filter { MixBuilder.isForgotten($0, now: now) }
             .sorted { ($0.lastPlayedAt ?? .distantPast) < ($1.lastPlayedAt ?? .distantPast) }
+    }
+
+    // MARK: Last.fm
+
+    private func updateScrobbler() {
+        scrobbler.update(entryID: player.queue.currentEntry?.id,
+                         track: player.currentTrack,
+                         isPlaying: player.isPlaying,
+                         position: player.currentTime)
     }
 
     // MARK: Ajustes de reproducción

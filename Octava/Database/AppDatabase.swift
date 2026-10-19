@@ -136,6 +136,14 @@ final class AppDatabase: Sendable {
             }
         }
 
+        // Fase 5: la cola de scrobbles guarda también el artista del álbum y el número de pista.
+        migrator.registerMigration("v5") { db in
+            try db.alter(table: "scrobbleQueue") { t in
+                t.add(column: "albumArtist", .text)
+                t.add(column: "trackNumber", .integer)
+            }
+        }
+
         return migrator
     }
 }
@@ -238,6 +246,68 @@ extension AppDatabase {
                                    arguments: [id])
                 }
             }
+        }
+    }
+}
+
+// MARK: - Cola de scrobbles (sin conexión)
+
+struct PendingScrobble: Sendable {
+    var id: Int64
+    var item: ScrobbleItem
+    var attempts: Int
+}
+
+extension AppDatabase {
+    func enqueueScrobble(_ item: ScrobbleItem) throws {
+        try writer.write { db in
+            try db.execute(sql: """
+                INSERT INTO scrobbleQueue (artist, title, album, albumArtist, trackNumber, startedAt, duration, attempts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                """, arguments: [item.artist, item.title, item.album, item.albumArtist, item.trackNumber,
+                                 item.startedAt, item.duration])
+        }
+    }
+
+    /// Los más antiguos primero.
+    func pendingScrobbles(limit: Int) -> [PendingScrobble] {
+        (try? writer.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM scrobbleQueue ORDER BY startedAt LIMIT ?", arguments: [limit]).map { row in
+                PendingScrobble(id: row["id"],
+                                item: ScrobbleItem(artist: row["artist"], title: row["title"], album: row["album"],
+                                                   albumArtist: row["albumArtist"], trackNumber: row["trackNumber"],
+                                                   duration: row["duration"], startedAt: row["startedAt"]),
+                                attempts: row["attempts"])
+            }
+        }) ?? []
+    }
+
+    var pendingScrobbleCount: Int {
+        (try? writer.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM scrobbleQueue") ?? 0 }) ?? 0
+    }
+
+    func deleteScrobbles(_ ids: [Int64]) throws {
+        try writer.write { db in
+            for id in ids { try db.execute(sql: "DELETE FROM scrobbleQueue WHERE id = ?", arguments: [id]) }
+        }
+    }
+
+    /// Suma un intento fallido y descarta los que ya fallaron `maxAttempts` veces.
+    func markScrobblesFailed(_ ids: [Int64], maxAttempts: Int) throws {
+        try writer.write { db in
+            for id in ids {
+                try db.execute(sql: "UPDATE scrobbleQueue SET attempts = attempts + 1 WHERE id = ?", arguments: [id])
+            }
+            try db.execute(sql: "DELETE FROM scrobbleQueue WHERE attempts >= ?", arguments: [maxAttempts])
+        }
+    }
+
+    /// Descarta lo que Last.fm ya no aceptaría (más de 14 días). Devuelve cuántos se borraron.
+    @discardableResult
+    func dropScrobbles(olderThan date: Date) throws -> Int {
+        try writer.write { db in
+            try db.execute(sql: "DELETE FROM scrobbleQueue WHERE startedAt < ?", arguments: [date])
+            return db.changesCount
         }
     }
 }

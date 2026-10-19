@@ -102,17 +102,42 @@ struct SidebarView: View {
         }
     }
 
+    private var lastFMTitle: String {
+        let scrobbler = model.scrobbler
+        if let username = scrobbler.username {
+            return scrobbler.isEnabled ? "Last.fm · \(username)" : "Last.fm en pausa"
+        }
+        return scrobbler.isAuthorizing ? "Conectando Last.fm…" : "Last.fm sin conectar"
+    }
+
+    private var lastFMDotColor: Color {
+        let scrobbler = model.scrobbler
+        guard scrobbler.isConnected, scrobbler.isEnabled else { return Theme.mutedIcon }
+        return scrobbler.lastError == nil ? Theme.ok : Theme.accent
+    }
+
     private var statusCard: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Theme.mutedIcon)
-                    .frame(width: 8, height: 8)
-                Text("Last.fm sin conectar")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.ink)
+            SettingsLink {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(lastFMDotColor)
+                        .frame(width: 8, height: 8)
+                    Text(lastFMTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                }
+                .contentShape(Rectangle())
             }
-            .help("El scrobbling llega en la fase 5")
+            .buttonStyle(.plain)
+            .help(model.scrobbler.lastError ?? "Ajustes de Last.fm")
+
+            if model.scrobbler.pendingCount > 0 {
+                Text(countLabel(model.scrobbler.pendingCount, singular: "scrobble pendiente", plural: "scrobbles pendientes"))
+                    .font(Theme.mono(11))
+                    .foregroundStyle(Theme.accentText)
+            }
 
             if model.showsScanProgress, let progress = model.scanProgress {
                 Text("Leyendo \(progress.processed) de \(progress.total)")
