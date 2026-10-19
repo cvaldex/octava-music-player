@@ -96,8 +96,12 @@ Flujo: la interfaz llama a `AppModel` / `LibraryStore` / `PlaybackEngine`; nunca
       marcan las pistas para releer y se re-escanea: reagrupa discos, recalcula el año del disco y la carátula, conserva
       estadísticas; la cola se refresca sin cortar el audio. Probado con MP3 sintéticos en los tests, nunca con la colección.
       *Pendiente de verificar por el usuario en Xcode con un disco de prueba.*
-- [ ] **5. Last.fm** — autenticación de escritorio, now playing, scrobble (regla en `scrobbleThreshold`), cola offline
-      en `scrobbleQueue` con reenvío por lotes, love/unlove, ajustes.
+- [x] **5. Last.fm** — `LastFMClient` (firma MD5, auth de escritorio con sondeo de `auth.getSession`, now playing,
+      `track.scrobble` en lotes de 50, love/unlove) y `Scrobbler` (@Observable): scrobble al pasar `scrobbleThreshold`,
+      cola offline en `scrobbleQueue` (migración `v5`: albumArtist, trackNumber) con reintento cada 5 min y descarte a
+      los 14 días, "Me encanta" al marcar favoritos (solo Octava → Last.fm). Clave de sesión en el Llavero; usuario y
+      ajustes en UserDefaults. Ajustes (⌘,) y estado en la barra lateral. Credenciales en `Octava/Config/Secrets.swift`
+      (ignorado; `preGenCommand` lo crea desde la plantilla). Conexión verificada con la cuenta del usuario.
 - [ ] **6. Pulido** — mini-reproductor o barra de menú (glifo en `docs/brand/octava-menubar.svg`), atajos (barra
       espaciadora sin chocar con la búsqueda), manejo de errores (carpeta desconectada, archivo movido, cambio de salida de audio), modo oscuro opcional.
 - [ ] **7. Uso diario** — build Release y copia a /Applications.
