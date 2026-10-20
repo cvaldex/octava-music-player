@@ -79,9 +79,17 @@ struct RootView: View {
                 selection = .albums
             }
         }
-        .onChange(of: isSearching) { _, searching in
-            // Al empezar a buscar se vuelve a la raíz para mostrar los resultados.
-            if searching { navigator.reset() }
+        .onChange(of: query) { old, new in
+            // Al buscar (o cambiar la búsqueda) se vuelve a la raíz, donde están los resultados. Antes solo se hacía
+            // al pasar de "sin búsqueda" a "buscando": con un disco abierto desde los resultados, editar la búsqueda
+            // dejaba el disco en pantalla.
+            let trimmed = new.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed != old.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
+            navigator.reset()
+        }
+        .onSubmit(of: .search) {
+            // Enter en la caja de búsqueda: mostrar los resultados aunque haya un disco o artista abierto.
+            if isSearching { navigator.reset() }
         }
         .sheet(isPresented: Binding(get: { model.showsMixBuilder }, set: { model.showsMixBuilder = $0 })) {
             MixBuilderView(model: model)
