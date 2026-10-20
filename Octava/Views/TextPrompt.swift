@@ -22,6 +22,14 @@ enum TextPrompt {
         return value.isEmpty ? nil : value
     }
 
+    static func inform(title: String, message: String?) {
+        let alert = NSAlert()
+        alert.messageText = title
+        if let message { alert.informativeText = message }
+        alert.addButton(withTitle: "Aceptar")
+        alert.runModal()
+    }
+
     static func confirm(title: String, message: String?, confirmTitle: String) -> Bool {
         let alert = NSAlert()
         alert.messageText = title

@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import AppKit
 import Foundation
 import Observation
@@ -25,6 +26,8 @@ final class AppModel {
     private(set) var withheldMissingCount = 0
     /// Pedido de mostrar el disco de la canción actual (⌘L); la vista raíz lo observa.
     private(set) var revealCurrentRequest = 0
+    /// Lista recién creada que la vista raíz debe abrir (por ejemplo, al importar).
+    private(set) var showPlaylistRequest: Int64?
 
     /// Al terminar la cola, seguir con una mezcla aleatoria de la colección.
     var continueWithMix: Bool {
@@ -448,6 +451,54 @@ final class AppModel {
         guard !tracks.isEmpty else { return nil }
         let suggested = activeMix?.title ?? player.queue.current.map { "\($0.performer) y más" } ?? "Mi lista"
         return createPlaylistPrompting(with: tracks, suggestedName: suggested)
+    }
+
+    /// Importa una lista .xspf, .m3u o .m3u8 de otro programa: busca sus canciones en la biblioteca,
+    /// pide el nombre y abre la lista creada. Avisa qué canciones no se encontraron.
+    func importPlaylist() {
+        let panel = NSOpenPanel()
+        panel.title = "Importar lista"
+        panel.message = "Elige una lista de reproducción (.xspf, .m3u o .m3u8)."
+        panel.prompt = "Importar"
+        panel.allowedContentTypes = PlaylistImport.fileExtensions.compactMap { UTType(filenameExtension: $0) }
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        guard let data = try? Data(contentsOf: url) else {
+            errorMessage = "No se pudo leer “\(url.lastPathComponent)”."
+            return
+        }
+        let parsed = PlaylistImport.parse(data: data, fileExtension: url.pathExtension)
+        let match = PlaylistImport.match(parsed.entries, tracks: library.tracks, musicFolder: musicFolder,
+                                         playlistFolder: url.deletingLastPathComponent())
+        guard !match.trackIDs.isEmpty else {
+            errorMessage = parsed.entries.isEmpty
+                ? "“\(url.lastPathComponent)” no tiene canciones."
+                : "Ninguna de las \(parsed.entries.count) canciones de “\(url.lastPathComponent)” está en tu biblioteca."
+            return
+        }
+
+        let suggested = parsed.title ?? url.deletingPathExtension().lastPathComponent
+        let found = countLabel(match.trackIDs.count, singular: "canción", plural: "canciones")
+        let message = match.missing.isEmpty
+            ? "Se encontraron las \(found) en tu biblioteca."
+            : "Se encontraron \(found) de \(parsed.entries.count). Las demás no están en tu biblioteca."
+        guard let name = TextPrompt.ask(title: "Importar lista", message: message,
+                                        defaultValue: suggested, confirmTitle: "Crear lista"),
+              let id = playlists.create(name: name, trackIDs: match.trackIDs) else { return }
+        showPlaylistRequest = id
+
+        if !match.missing.isEmpty {
+            let names = match.missing.prefix(15).map { entry -> String in
+                let label = [entry.creator, entry.title].compactMap { $0 }.joined(separator: " – ")
+                if !label.isEmpty { return label }
+                return entry.location.map { ($0 as NSString).lastPathComponent } ?? "Sin nombre"
+            }
+            let more = match.missing.count > 15 ? "\n… y \(match.missing.count - 15) más." : ""
+            TextPrompt.inform(title: "\(countLabel(match.missing.count, singular: "canción no se encontró", plural: "canciones no se encontraron"))",
+                              message: names.joined(separator: "\n") + more)
+        }
     }
 
     func renamePlaylistPrompting(_ playlist: Playlist) {

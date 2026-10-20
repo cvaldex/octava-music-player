@@ -30,6 +30,8 @@ struct OctavaApp: App {
                     .keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("Guardar la cola como lista…") { model.saveQueueAsPlaylist() }
                     .disabled(model.player.queue.isEmpty)
+                Button("Importar lista…") { model.importPlaylist() }
+                    .disabled(model.musicFolder == nil)
             }
             CommandGroup(after: .undoRedo) {
                 Divider()

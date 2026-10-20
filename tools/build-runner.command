@@ -3,7 +3,7 @@
 # Se abre con doble clic. Queda esperando: cada vez que aparece build-logs/request,
 # ejecuta el comando pedido (bootstrap | generate | build | test | all | env | gitstatus | gitcommit | run | kill | sample | script)
 # y deja la salida en build-logs/.
-# Se cierra solo tras 3 horas sin pedidos, o al crear build-logs/stop.
+# Se cierra solo tras 24 horas sin pedidos, o al crear build-logs/stop.
 cd "$(dirname "$0")/.." || exit 1
 ROOT="$(pwd)"
 LOGS="$ROOT/build-logs"
@@ -48,5 +48,5 @@ while true; do
   fi
   sleep 2
   idle=$((idle+2))
-  if [ $idle -ge 10800 ]; then echo "stopped (idle)" > "$LOGS/runner-status"; exit 0; fi
+  if [ $idle -ge 86400 ]; then echo "stopped (idle)" > "$LOGS/runner-status"; exit 0; fi
 done

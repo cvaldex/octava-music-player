@@ -68,6 +68,11 @@ struct RootView: View {
                 navigator.show(.album(album))
             }
         }
+        .onChange(of: model.showPlaylistRequest) { _, id in
+            guard let id else { return }
+            query = ""
+            selection = .playlist(id)
+        }
         .onChange(of: model.revealCurrentRequest) {
             guard let album = model.library.album(id: model.player.currentTrack?.albumId) else { return }
             query = ""

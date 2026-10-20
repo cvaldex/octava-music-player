@@ -192,3 +192,5 @@ Actualiza esta lista al cerrar cada fase.
   filas: bloqueaba el arrastre del asa para reordenar.
 - La sección Géneros se quitó de la barra lateral (a pedido); el filtro por género sigue en "Nueva mezcla".
 - Nombre visible "Octava Music Player" (Dock, Finder): `CFBundleDisplayName` en project.yml más `Resources/{es,en}.lproj/InfoPlist.strings` y `LSHasLocalizedDisplayName` en `Config/Info.plist`. El ejecutable, el proceso y `CFBundleName` siguen siendo `Octava` (install.command y `pkill -x Octava` dependen de eso).
+- Importar listas (Archivo → Importar lista…): `PlaylistImport` lee XSPF y M3U/M3U8 y busca cada canción por ruta relativa a la carpeta de música, luego por el final de la ruta (listas de otro computador) y por título + artista. Avisa las que no encontró.
+- `tools/build-runner.command` se cierra solo tras 24 h sin pedidos (antes 3 h): si no responde, hay que volver a abrirlo.
