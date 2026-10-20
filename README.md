@@ -1,48 +1,70 @@
-# Octava
+# Octava Music Player
 
-Reproductor de música para Mac que administra una colección local de MP3: discos completos, mezclas aleatorias,
-edición de tags y scrobbling a Last.fm.
+Reproductor de música nativo para macOS que administra una colección local de MP3: discos completos, cola de
+reproducción, mezclas aleatorias, listas, edición de tags y scrobbling a Last.fm.
 
 <img src="docs/brand/octava-icon-1024.png" width="128" alt="Ícono de Octava">
 
-## Estado
+**Versión 1.0.0** · macOS 14 Sonoma o posterior · SwiftUI + GRDB (SQLite)
 
-Fase 0 (esqueleto): elegir la carpeta de música, escanearla, ver la grilla de álbumes con carátulas, abrir un disco,
-reproducirlo, marcar favoritos y llevar la cuenta de reproducciones. Ver el plan completo en `docs/SPEC.md`.
+## Funciones
 
-## Primeros pasos en el Mac
+- **Biblioteca**: escanea una carpeta de MP3 (tags ID3 y carátulas) y la mantiene al día sola cuando agregas, mueves o
+  borras archivos. Vistas de discos, artistas, canciones y favoritos, con búsqueda.
+- **Reproducción sin cortes** (gapless), normalización de volumen, repetir, Centro de Control y teclas multimedia.
+- **Cola "A continuación"**: arrastra canciones o discos a cualquier posición, reordénala con el asa, quita o
+  reproduce desde el menú contextual. Opción "Detener al terminar esta canción".
+- **Mezclas**: aleatoria de toda la colección o con filtros (décadas, géneros, artistas); se rellenan solas y evitan
+  repetir artista o disco seguidos.
+- **Listas** propias y dinámicas ("Más escuchadas", "Hace tiempo sin oír"), con conteo de reproducciones.
+- **Editor de tags** para una o varias canciones (incluida la carátula), conservando el resto de la etiqueta, con
+  deshacer.
+- **Last.fm**: scrobbling (con cola sin conexión), "Reproduciendo ahora" y me gusta.
+- **Mini reproductor** en la barra de menús.
 
-1. Instala **Xcode** desde la App Store y ábrelo una vez para aceptar la licencia.
-2. Instala **Homebrew** si no lo tienes: https://brew.sh
-3. En la Terminal, dentro de esta carpeta:
+## Atajos de teclado
 
-   ```bash
-   ./bootstrap.sh
-   open Octava.xcodeproj
-   ```
+| Acción | Atajo |
+| --- | --- |
+| Reproducir / pausar | Espacio o ⌘P |
+| Siguiente / anterior | ⌘→ / ⌘← |
+| Adelantar / retroceder 10 s | ⌥⌘→ / ⌥⌘← |
+| Subir / bajar volumen | ⌥⌘↑ / ⌥⌘↓ |
+| Silenciar | ⌥⌘M |
+| Detener / detener al terminar la canción | ⌘. / ⌥⌘. |
+| Ir a la canción actual | ⌘L |
+| Mezcla aleatoria de toda la colección | ⇧⌘S |
+| Nueva mezcla con filtros | ⇧⌘M |
+| Nueva lista | ⇧⌘N |
+| Deshacer edición de tags | ⌥⌘Z |
+| Elegir carpeta / volver a escanear | ⌘O / ⌘R |
 
-   `bootstrap.sh` instala XcodeGen, genera el proyecto de Xcode e inicia el repositorio git.
-4. En Xcode, presiona ⌘R. La primera vez, Octava te pedirá la carpeta de tu colección de MP3.
+## Compilar e instalar
 
-## Seguir con Claude Code
-
-Abre Claude Code en esta carpeta (app de escritorio de Claude o `claude` en la terminal). Al iniciar lee `CLAUDE.md`,
-que resume el proyecto, los comandos, las convenciones y el estado de cada fase. Puedes empezar con:
-
-> Ejecuta bootstrap.sh, compila el proyecto y corrige lo que falle. Después dime qué debo probar en Xcode.
-
-Y luego, fase por fase:
-
-> Lee docs/SPEC.md y docs/DESIGN.md e implementa la fase 1.
-
-## Subir a GitHub
-
-Crea un repositorio privado vacío en GitHub y, desde esta carpeta:
+Requisitos: **Xcode** (abierto una vez para aceptar la licencia) y **Homebrew** (https://brew.sh).
 
 ```bash
-git remote add origin https://github.com/<tu-usuario>/octava.git
-git push -u origin main
+./bootstrap.sh              # instala XcodeGen, genera Octava.xcodeproj e inicia git
+open Octava.xcodeproj       # ⌘R para ejecutar la versión de desarrollo
+./tools/install.command     # compila la versión Release y la instala en /Applications
 ```
+
+`Octava.xcodeproj` no se versiona: se genera desde `project.yml` con XcodeGen.
+
+La app se firma solo para uso local ("Sign to Run Locally"), sin cuenta de desarrollador. Si se copia a otro Mac,
+macOS pedirá abrirla con clic derecho → Abrir la primera vez.
+
+### Last.fm
+
+Las credenciales no están en el repositorio. Al generar el proyecto se crea `Octava/Config/Secrets.swift` (ignorado
+por git) desde `Secrets.example.swift`: pon ahí la API key y el shared secret de tu aplicación en
+https://www.last.fm/api/account/create. Luego conecta tu cuenta en Ajustes; la sesión se guarda en el Llavero.
+
+## Datos
+
+La biblioteca, las listas y las estadísticas viven en
+`~/Library/Containers/local.octava.Octava/Data/Library/Application Support/Octava/library.sqlite`. Octava nunca
+modifica tus archivos de música, salvo los tags que confirmas en el editor.
 
 ## Estructura
 
@@ -50,8 +72,20 @@ git push -u origin main
 | --- | --- |
 | `Octava/` | Código de la app (SwiftUI) y recursos |
 | `OctavaTests/` | Tests |
+| `tools/` | Instalador (`install.command`) y ejecutor de compilación |
 | `docs/SPEC.md` | Especificación y fases |
 | `docs/DESIGN.md` | Diseño: colores, tipografía, pantallas, ícono |
-| `docs/mockups/` | Referencias de diseño de cada pantalla |
-| `docs/brand/` | Ícono en SVG y PNG, y el script que genera los tamaños |
+| `docs/mockups/`, `docs/brand/` | Referencias de diseño e ícono |
 | `project.yml` | Definición del proyecto de Xcode (XcodeGen) |
+| `CLAUDE.md` | Notas técnicas para seguir desarrollando con Claude Code |
+
+## Créditos
+
+- Base de datos: [GRDB.swift](https://github.com/groue/GRDB.swift).
+- Logo de Last.fm en Ajustes: ícono de [Flaticon](https://www.flaticon.com) (n.º 145806), creado por Freepik.
+  Last.fm es una marca de sus respectivos dueños.
+
+## Licencia
+
+Código bajo [GNU GPL v3](LICENSE). El logo de Last.fm no forma parte del código licenciado: se usa bajo la licencia
+gratuita de Flaticon (con atribución) y la marca pertenece a Last.fm.
