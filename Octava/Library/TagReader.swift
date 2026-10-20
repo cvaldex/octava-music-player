@@ -52,6 +52,26 @@ enum TagReader {
             tags.artwork = try? await pictureItem.load(.dataValue)
         }
 
+        // ID3v2.2: AVFoundation entrega título, artista y álbum, pero no pista, disco, año, artista del álbum
+        // ni género. Se completan con el lector propio (el mismo que usa el editor de tags).
+        if ID3TagWriter.tagVersion(ofFileAt: url) == 2, let tag = ID3TagWriter.readTag(fromFileAt: url) {
+            func value(_ field: TagField) -> String? {
+                guard let text = tag.text(for: field), !text.isEmpty else { return nil }
+                return text
+            }
+            tags.title = tags.title ?? value(.title)
+            tags.artist = tags.artist ?? value(.artist)
+            tags.albumArtist = tags.albumArtist ?? value(.albumArtist)
+            tags.album = tags.album ?? value(.album)
+            tags.trackNumber = tags.trackNumber ?? leadingNumber(value(.trackNumber))
+            tags.discNumber = tags.discNumber ?? leadingNumber(value(.discNumber))
+            tags.year = tags.year ?? year(from: value(.year))
+            tags.genre = tags.genre ?? cleanGenre(value(.genre))
+            if tags.artwork == nil, let cover = tag.frontCover(), !cover.data.isEmpty {
+                tags.artwork = cover.data
+            }
+        }
+
         let userText = ID3UserTextReader.read(url: url)
         tags.replayGainTrack = ReplayGain.parse(userText["REPLAYGAIN_TRACK_GAIN"])
         tags.replayGainAlbum = ReplayGain.parse(userText["REPLAYGAIN_ALBUM_GAIN"])

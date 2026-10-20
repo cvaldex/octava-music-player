@@ -168,13 +168,100 @@ final class ID3TagWriterTests: XCTestCase {
     }
 
     func testRejectsUnsupportedAndDamagedTags() {
-        let v22 = [0x49, 0x44, 0x33, 2, 0, 0] + synchsafe(10) + [UInt8](repeating: 0, count: 10) + audio(frames: 2)
-        XCTAssertThrowsError(try ID3TagWriter.apply(TagChanges(text: [.title: "x"]), to: Data(v22)))
+        // Versión desconocida (v2.5): no se toca.
+        let v25 = [0x49, 0x44, 0x33, 5, 0, 0] + synchsafe(10) + [UInt8](repeating: 0, count: 10) + audio(frames: 2)
+        XCTAssertThrowsError(try ID3TagWriter.apply(TagChanges(text: [.title: "x"]), to: Data(v25)))
+
+        // v2.2 comprimida: tampoco.
+        let compressed = [0x49, 0x44, 0x33, 2, 0, 0x40] + synchsafe(10) + [UInt8](repeating: 0, count: 10) + audio(frames: 2)
+        XCTAssertThrowsError(try ID3TagWriter.apply(TagChanges(text: [.title: "x"]), to: Data(compressed)))
 
         // Un frame que dice medir más de lo que hay: dañado, no se toca.
         let damaged = [0x49, 0x44, 0x33, 3, 0, 0] + synchsafe(20) + Array("TIT2".utf8) + bigEndian(500) + [0, 0]
             + [UInt8](repeating: 0x41, count: 6) + audio(frames: 2)
         XCTAssertThrowsError(try ID3TagWriter.apply(TagChanges(text: [.title: "x"]), to: Data(damaged)))
+    }
+
+    // MARK: ID3v2.2
+
+    private func frame22(_ id: String, _ content: [UInt8]) -> [UInt8] {
+        Array(id.utf8) + [UInt8((content.count >> 16) & 0xFF), UInt8((content.count >> 8) & 0xFF), UInt8(content.count & 0xFF)] + content
+    }
+
+    private func sampleV22() -> [UInt8] {
+        // PIC: codificación, "JPG", tipo 3 (portada), descripción vacía, datos.
+        let pic: [UInt8] = [0x00] + Array("JPG".utf8) + [0x03, 0x00] + frontCover
+        return tag(major: 2, frames: [
+            frame22("TT2", latin1("Gorgar")),
+            frame22("TP1", latin1("Helloween")),
+            frame22("TP2", latin1("Helloween")),
+            frame22("TAL", latin1("Walls Of Jericho")),
+            frame22("TRK", latin1("11/21")),
+            frame22("TPA", latin1("1/2")),
+            frame22("TYE", latin1("1985")),
+            frame22("TCO", latin1("(137)")),
+            frame22("COM", comment),
+            frame22("TXX", txxx("REPLAYGAIN_TRACK_GAIN", "-6.54 dB")),
+            frame22("PIC", pic),
+            frame22("CRM", [1, 2, 3]),
+        ]) + audio()
+    }
+
+    func testV22IsReadAndRewrittenAsV23() throws {
+        let original = Data(sampleV22())
+
+        let read = try ID3TagWriter.readText(from: original)
+        XCTAssertEqual(read[.title], "Gorgar")
+        XCTAssertEqual(read[.albumArtist], "Helloween")
+        XCTAssertEqual(read[.trackNumber], "11/21")
+        XCTAssertEqual(read[.discNumber], "1/2")
+        XCTAssertEqual(read[.year], "1985")
+        XCTAssertEqual(read[.genre], "(137)")
+
+        let result = try ID3TagWriter.apply(TagChanges(text: [.trackNumber: "5"]), to: original)
+        XCTAssertEqual(result[3], 3, "queda escrita como v2.3")
+
+        let text = try ID3TagWriter.readText(from: result)
+        XCTAssertEqual(text[.trackNumber], "5/21", "se conserva el total")
+        XCTAssertEqual(text[.title], "Gorgar")
+        XCTAssertEqual(text[.album], "Walls Of Jericho")
+        XCTAssertEqual(text[.year], "1985")
+        XCTAssertEqual(text[.discNumber], "1/2")
+
+        let tag = try XCTUnwrap(try ID3TagWriter.locateTag(in: [UInt8](result)).tag)
+        XCTAssertEqual(tag.frontCover()?.data, Data(frontCover))
+        XCTAssertEqual(tag.frontCover()?.mimeType, "image/jpeg")
+        XCTAssertEqual(tag.frames.first { $0.id == "COMM" }?.content, comment, "el comentario se conserva")
+        XCTAssertNotNil(tag.frames.first { $0.id == "TXXX" }, "ReplayGain se conserva")
+        XCTAssertNil(tag.frames.first { $0.id.count == 3 }, "no quedan frames de v2.2")
+
+        // El audio no cambia.
+        XCTAssertEqual(Array(result.suffix(audio().count)), audio())
+
+        // Y lo lee el lector de TXXX (ReplayGain) en su nuevo formato.
+        XCTAssertEqual(ID3UserTextReader.parse(tag: tagBytes(result))["REPLAYGAIN_TRACK_GAIN"], "-6.54 dB")
+    }
+
+    /// El lector del escáner completa lo que AVFoundation no entrega de una v2.2.
+    func testTagReaderCompletesV22Fields() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("octava-v22-\(UUID().uuidString).mp3")
+        try Data(sampleV22()).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let tags = try await TagReader.read(url: url)
+        XCTAssertEqual(tags.title, "Gorgar")
+        XCTAssertEqual(tags.albumArtist, "Helloween")
+        XCTAssertEqual(tags.trackNumber, 11)
+        XCTAssertEqual(tags.discNumber, 1)
+        XCTAssertEqual(tags.year, 1985)
+        XCTAssertEqual(tags.genre, "Heavy Metal")
+        XCTAssertNotNil(tags.artwork)
+    }
+
+    func testV22PictureFormats() {
+        let png: [UInt8] = [0x00] + Array("PNG".utf8) + [0x03, 0x00, 0x89]
+        let apic = ID3v22.pictureToAPIC(png)
+        XCTAssertEqual(apic, [0x00] + Array("image/png".utf8) + [0x00, 0x03, 0x00, 0x89])
     }
 
     func testV24WithPlainFrameSizes() throws {

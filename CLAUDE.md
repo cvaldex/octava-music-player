@@ -164,7 +164,9 @@ Actualiza esta lista al cerrar cada fase.
 - Stop (`stopPlayback`): deja la canción actual al principio y en pausa, sin vaciar la cola. "Detener al terminar esta
   canción" (`stopAfterEntryID`) va atado a la entrada de la cola: al terminar, pasa a la siguiente en pausa; si se cambia
   de canción a mano deja de aplicar. Mientras está activo no se programa la siguiente (gapless).
-- Tags: `ID3TagWriter` rechaza (sin tocar el archivo) ID3v2.2, v2.4 con desincronización global y etiquetas dañadas.
+- Tags: `ID3TagWriter` rechaza (sin tocar el archivo) v2.4 con desincronización global, v2.2 comprimida y etiquetas
+  dañadas. Las ID3v2.2 se convierten a v2.3 en memoria (`ID3v22`, PIC→APIC) y se guardan como v2.3. AVFoundation no
+  entrega pista, disco, año, TPE2 ni género de las v2.2: `TagReader` los completa con `ID3TagWriter.readTag(fromFileAt:)`.
   Los temporales se llaman `.octava-<uuid>.tmp` (ocultos, en la carpeta del disco). Las miniaturas de carátula tienen
   nombre único por versión para que la vista las recargue.
 - Logo de Last.fm en Ajustes: `Resources/Assets.xcassets/LastFMLogo` (ícono 145806 de Flaticon; la licencia gratuita

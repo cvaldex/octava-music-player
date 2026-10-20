@@ -154,6 +154,30 @@ enum ID3TagWriter {
         return result
     }
 
+    /// Versión de la etiqueta ID3v2 del archivo (2, 3, 4) leyendo solo la cabecera; nil si no tiene.
+    static func tagVersion(ofFileAt url: URL) -> UInt8? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let header = try? handle.read(upToCount: 10), header.count == 10 else { return nil }
+        let bytes = [UInt8](header)
+        guard bytes[0] == 0x49, bytes[1] == 0x44, bytes[2] == 0x33 else { return nil }
+        return bytes[3]
+    }
+
+    /// Lee solo la etiqueta del archivo (sin cargar el audio) y la devuelve ya interpretada.
+    static func readTag(fromFileAt url: URL) -> ID3Tag? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let header = try? handle.read(upToCount: 10), header.count == 10 else { return nil }
+        let bytes = [UInt8](header)
+        guard bytes[0] == 0x49, bytes[1] == 0x44, bytes[2] == 0x33,
+              bytes[6] < 0x80, bytes[7] < 0x80, bytes[8] < 0x80, bytes[9] < 0x80 else { return nil }
+        let size = synchsafe(bytes[6], bytes[7], bytes[8], bytes[9])
+        guard size > 0, size <= ID3UserTextReader.maxTagSize,
+              let body = try? handle.read(upToCount: size), body.count == size else { return nil }
+        return try? locateTag(in: bytes + [UInt8](body)).tag
+    }
+
     // MARK: Lectura de la etiqueta
 
     struct Located {
@@ -174,6 +198,13 @@ enum ID3TagWriter {
         let audioStart = 10 + size + (hasFooter ? 10 : 0)
         guard audioStart <= bytes.count else { throw Failure.damagedTag }
 
+        if major == 2 {
+            // v2.2 (1998): se lee y se convierte a v2.3 en memoria; al guardar queda escrita como v2.3.
+            if flags & 0x40 != 0 { throw Failure.unsupportedFlags } // compresión (nunca se usó en la práctica)
+            var body = Array(bytes[10..<(10 + size)])
+            if flags & 0x80 != 0 { body = removeUnsynchronization(body) }
+            return Located(tag: try ID3v22.convertToV23(body: body), audioStart: audioStart)
+        }
         guard major == 3 || major == 4 else { throw Failure.unsupportedVersion(Int(major)) }
         if major == 4 && flags & 0x80 != 0 { throw Failure.unsupportedFlags }
 
@@ -484,5 +515,78 @@ struct ID3Tag: Equatable {
         }
         body += [UInt8](repeating: 0, count: padding)
         return [0x49, 0x44, 0x33, major, 0x00, 0x00] + ID3TagWriter.synchsafeBytes(body.count) + body
+    }
+}
+
+// MARK: - ID3v2.2
+
+/// Conversión de etiquetas ID3v2.2 (identificadores de 3 letras, cabecera de frame de 6 bytes) a v2.3.
+/// Octava no escribe v2.2: al guardar, la etiqueta queda como v2.3 con los mismos datos.
+enum ID3v22 {
+    /// Equivalencias v2.2 → v2.3 (norma ID3v2.3 y los frames no estándar de iTunes).
+    /// Los frames sin equivalente (CRM, LNK y desconocidos) se descartan: no tienen forma válida en v2.3.
+    static let frameIDs: [String: String] = [
+        "BUF": "RBUF", "CNT": "PCNT", "COM": "COMM", "CRA": "AENC", "ETC": "ETCO", "EQU": "EQUA",
+        "GEO": "GEOB", "IPL": "IPLS", "MCI": "MCDI", "MLL": "MLLT", "POP": "POPM", "REV": "RVRB",
+        "RVA": "RVAD", "SLT": "SYLT", "STC": "SYTC", "TAL": "TALB", "TBP": "TBPM", "TCM": "TCOM",
+        "TCO": "TCON", "TCR": "TCOP", "TDA": "TDAT", "TDY": "TDLY", "TEN": "TENC", "TFT": "TFLT",
+        "TIM": "TIME", "TKE": "TKEY", "TLA": "TLAN", "TLE": "TLEN", "TMT": "TMED", "TOA": "TOPE",
+        "TOF": "TOFN", "TOL": "TOLY", "TOR": "TORY", "TOT": "TOAL", "TP1": "TPE1", "TP2": "TPE2",
+        "TP3": "TPE3", "TP4": "TPE4", "TPA": "TPOS", "TPB": "TPUB", "TRC": "TSRC", "TRD": "TRDA",
+        "TRK": "TRCK", "TSI": "TSIZ", "TSS": "TSSE", "TT1": "TIT1", "TT2": "TIT2", "TT3": "TIT3",
+        "TXT": "TEXT", "TXX": "TXXX", "TYE": "TYER", "UFI": "UFID", "ULT": "USLT", "WAF": "WOAF",
+        "WAR": "WOAR", "WAS": "WOAS", "WCM": "WCOM", "WCP": "WCOP", "WPB": "WPUB", "WXX": "WXXX",
+        // iTunes
+        "TCP": "TCMP", "TS2": "TSO2", "TSA": "TSOA", "TSC": "TSOC", "TSP": "TSOP", "TST": "TSOT",
+    ]
+
+    /// Cuerpo de una etiqueta v2.2 (sin cabecera, ya sin desincronización) → etiqueta v2.3 equivalente.
+    static func convertToV23(body: [UInt8]) throws -> ID3Tag {
+        var frames: [ID3Frame] = []
+        var offset = 0
+        while offset + 6 <= body.count {
+            if body[offset] == 0 {
+                // Relleno. Algunos programas dejaban basura tras él; en v2.2 se ignora (se reescribe todo).
+                break
+            }
+            let idBytes = Array(body[offset..<(offset + 3)])
+            guard idBytes.allSatisfy(isFrameIDByte), let id = String(bytes: idBytes, encoding: .ascii) else {
+                throw ID3TagWriter.Failure.damagedTag
+            }
+            let size = (Int(body[offset + 3]) << 16) | (Int(body[offset + 4]) << 8) | Int(body[offset + 5])
+            let start = offset + 6
+            let end = start + size
+            guard end <= body.count else { throw ID3TagWriter.Failure.damagedTag }
+            let content = Array(body[start..<end])
+            offset = end
+
+            if id == "PIC" {
+                if let apic = pictureToAPIC(content) {
+                    frames.append(ID3Frame(id: "APIC", flags: [0, 0], content: apic))
+                }
+            } else if let newID = frameIDs[id] {
+                frames.append(ID3Frame(id: newID, flags: [0, 0], content: content))
+            }
+        }
+        return ID3Tag(major: 3, frames: frames)
+    }
+
+    /// PIC: codificación, formato de imagen de 3 letras ("JPG", "PNG"), tipo, descripción, datos.
+    /// APIC: codificación, tipo MIME terminado en nulo, tipo, descripción, datos.
+    static func pictureToAPIC(_ content: [UInt8]) -> [UInt8]? {
+        guard content.count >= 5 else { return nil }
+        let format = String(bytes: content[1..<4], encoding: .isoLatin1)?.uppercased() ?? ""
+        let mime: String
+        switch format {
+        case "PNG": mime = "image/png"
+        case "GIF": mime = "image/gif"
+        case "BMP": mime = "image/bmp"
+        default: mime = "image/jpeg"
+        }
+        return [content[0]] + Array(mime.utf8) + [0x00] + Array(content[4...])
+    }
+
+    private static func isFrameIDByte(_ byte: UInt8) -> Bool {
+        (byte >= 0x41 && byte <= 0x5A) || (byte >= 0x30 && byte <= 0x39)
     }
 }

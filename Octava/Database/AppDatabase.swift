@@ -151,6 +151,16 @@ final class AppDatabase: Sendable {
             try db.execute(sql: "UPDATE track SET fileModifiedAt = ?", arguments: [Date(timeIntervalSince1970: 0)])
         }
 
+        // v7: el lector ahora completa pista, disco, año, artista del álbum y género de las etiquetas ID3v2.2,
+        // que AVFoundation no entrega. Se releen las canciones a las que les falta alguno de esos datos
+        // (incluye todas las v2.2; las demás quedan igual).
+        migrator.registerMigration("v7") { db in
+            try db.execute(sql: """
+                UPDATE track SET fileModifiedAt = ?
+                WHERE trackNumber IS NULL OR year IS NULL OR albumArtist IS NULL OR genre IS NULL
+                """, arguments: [Date(timeIntervalSince1970: 0)])
+        }
+
         return migrator
     }
 }
