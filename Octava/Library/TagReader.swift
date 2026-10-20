@@ -22,7 +22,17 @@ struct TrackTags: Sendable {
 enum TagReader {
     static func read(url: URL) async throws -> TrackTags {
         let asset = AVURLAsset(url: url)
-        let (duration, items) = try await asset.load(.duration, .metadata)
+        let duration: CMTime
+        let items: [AVMetadataItem]
+        do {
+            (duration, items) = try await asset.load(.duration, .metadata)
+        } catch {
+            // AVURLAsset rechaza algunos MP3 sanos ("This media may be damaged", -11849) que AVAudioFile, Core Audio
+            // y ffmpeg decodifican enteros (pasó con "11 - Corynorhinus" de Batman Begins). Como la reproducción usa
+            // AVAudioFile, se leen los tags con el lector propio y la duración con AVAudioFile.
+            if let tags = readWithoutAVAsset(url: url) { return tags }
+            throw error
+        }
 
         var tags = TrackTags()
         tags.duration = duration.seconds.isFinite ? duration.seconds : 0
@@ -79,6 +89,36 @@ enum TagReader {
         if let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first,
            let rate = try? await audioTrack.load(.estimatedDataRate), rate > 0 {
             tags.bitrate = Int((Double(rate) / 1000).rounded())
+        }
+        return tags
+    }
+
+    /// Lectura de respaldo: etiqueta con `ID3TagWriter` y duración con `AVAudioFile` (lo mismo que reproduce).
+    /// nil si el audio tampoco se puede abrir así.
+    static func readWithoutAVAsset(url: URL) -> TrackTags? {
+        guard let file = try? AVAudioFile(forReading: url), file.length > 0 else { return nil }
+        var tags = TrackTags()
+        tags.duration = Double(file.length) / file.fileFormat.sampleRate
+        if let tag = ID3TagWriter.readTag(fromFileAt: url) {
+            func value(_ field: TagField) -> String? {
+                guard let text = tag.text(for: field), !text.isEmpty else { return nil }
+                return text
+            }
+            tags.title = value(.title)
+            tags.artist = value(.artist)
+            tags.albumArtist = value(.albumArtist)
+            tags.album = value(.album)
+            tags.trackNumber = leadingNumber(value(.trackNumber))
+            tags.discNumber = leadingNumber(value(.discNumber))
+            tags.year = year(from: value(.year))
+            tags.genre = cleanGenre(value(.genre))
+            if let cover = tag.frontCover(), !cover.data.isEmpty { tags.artwork = cover.data }
+        }
+        let userText = ID3UserTextReader.read(url: url)
+        tags.replayGainTrack = ReplayGain.parse(userText["REPLAYGAIN_TRACK_GAIN"])
+        tags.replayGainAlbum = ReplayGain.parse(userText["REPLAYGAIN_ALBUM_GAIN"])
+        if tags.duration > 0, let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize {
+            tags.bitrate = Int((Double(size) * 8 / tags.duration / 1000).rounded())
         }
         return tags
     }

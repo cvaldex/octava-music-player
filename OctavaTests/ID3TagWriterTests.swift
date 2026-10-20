@@ -258,6 +258,27 @@ final class ID3TagWriterTests: XCTestCase {
         XCTAssertNotNil(tags.artwork)
     }
 
+    /// Respaldo cuando AVURLAsset rechaza el archivo: tags propios y duración con AVAudioFile.
+    func testReadWithoutAVAssetUsesOwnParserAndAVAudioFile() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("octava-noasset-\(UUID().uuidString).mp3")
+        let bytes = tag(major: 3, frames: [
+            frame("TIT2", latin1("Corynorhinus"), major: 3),
+            frame("TPE1", latin1("Hans Zimmer"), major: 3),
+            frame("TALB", latin1("Batman Begins"), major: 3),
+            frame("TRCK", latin1("11"), major: 3),
+            frame("TYER", latin1("2005"), major: 3),
+        ]) + audio(frames: 200)
+        try Data(bytes).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let tags = try XCTUnwrap(TagReader.readWithoutAVAsset(url: url))
+        XCTAssertEqual(tags.title, "Corynorhinus")
+        XCTAssertEqual(tags.album, "Batman Begins")
+        XCTAssertEqual(tags.trackNumber, 11)
+        XCTAssertEqual(tags.year, 2005)
+        XCTAssertGreaterThan(tags.duration, 4)
+    }
+
     func testV22PictureFormats() {
         let png: [UInt8] = [0x00] + Array("PNG".utf8) + [0x03, 0x00, 0x89]
         let apic = ID3v22.pictureToAPIC(png)
