@@ -189,3 +189,4 @@ Actualiza esta lista al cerrar cada fase.
   `RightClickWatcher` que marca la fila bajo el puntero al hacer clic derecho. En la cola no poner `onTapGesture` en las
   filas: bloqueaba el arrastre del asa para reordenar.
 - La sección Géneros se quitó de la barra lateral (a pedido); el filtro por género sigue en "Nueva mezcla".
+- Nombre visible "Octava Music Player" (Dock, Finder): `CFBundleDisplayName` en project.yml más `Resources/{es,en}.lproj/InfoPlist.strings` y `LSHasLocalizedDisplayName` en `Config/Info.plist`. El ejecutable, el proceso y `CFBundleName` siguen siendo `Octava` (install.command y `pkill -x Octava` dependen de eso).

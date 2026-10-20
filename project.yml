@@ -35,6 +35,7 @@ targets:
       - path: Octava
         excludes:
           - "Config/Secrets.example.swift"
+          - "Config/Info.plist"
     dependencies:
       - package: GRDB
     settings:
@@ -42,7 +43,9 @@ targets:
         PRODUCT_NAME: Octava
         PRODUCT_BUNDLE_IDENTIFIER: local.octava.Octava
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Octava
+        # Info.plist base: solo LSHasLocalizedDisplayName, para que Finder y el Dock muestren el nombre de InfoPlist.strings.
+        INFOPLIST_FILE: Octava/Config/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: "Octava Music Player"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.music
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
