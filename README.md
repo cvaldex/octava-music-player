@@ -5,7 +5,9 @@ reproducción, mezclas aleatorias, listas, edición de tags y scrobbling a Last.
 
 <img src="docs/brand/octava-icon-1024.png" width="128" alt="Ícono de Octava">
 
-**Versión 1.0.0** · macOS 14 Sonoma o posterior · SwiftUI + GRDB (SQLite)
+**Versión 1.1.0** · macOS 14 Sonoma o posterior · SwiftUI + GRDB (SQLite)
+
+Novedades de cada versión en [CHANGELOG.md](CHANGELOG.md).
 
 ## Funciones
 
@@ -16,11 +18,12 @@ reproducción, mezclas aleatorias, listas, edición de tags y scrobbling a Last.
   reproduce desde el menú contextual. Opción "Detener al terminar esta canción".
 - **Mezclas**: aleatoria de toda la colección o con filtros (décadas, géneros, artistas); se rellenan solas y evitan
   repetir artista o disco seguidos.
-- **Listas** propias y dinámicas ("Más escuchadas", "Hace tiempo sin oír"), con conteo de reproducciones.
-- **Editor de tags** para una o varias canciones (incluida la carátula), conservando el resto de la etiqueta, con
-  deshacer.
+- **Listas** propias y fijas que se actualizan solas ("Más escuchadas", "Hace tiempo sin oír", "Canciones cortas"),
+  con conteo de reproducciones. Importa listas `.xspf`, `.m3u` y `.m3u8` de otros programas.
+- **Editor de tags** para una o varias canciones (incluida la carátula, que se puede pegar desde el navegador),
+  conservando el resto de la etiqueta, con deshacer. Lee y escribe ID3v2.2, v2.3 y v2.4.
 - **Last.fm**: scrobbling (con cola sin conexión), "Reproduciendo ahora" y me gusta.
-- **Mini reproductor** en la barra de menús.
+- **Mini reproductor** en la barra de menús y controles en el menú del Dock.
 
 ## Atajos de teclado
 
