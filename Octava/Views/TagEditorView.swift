@@ -18,6 +18,7 @@ struct TagEditorView: View {
     @State private var newArtwork: TagChanges.Artwork?
     @State private var newArtworkImage: NSImage?
     @State private var artworkError: String?
+    @State private var isLoadingArtwork = false
     @State private var isSaving = false
 
     init(model: AppModel, tracks: [Track]) {
@@ -115,13 +116,23 @@ struct TagEditorView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8)
                 .stroke(newArtwork != nil ? Theme.accent : Theme.separator, lineWidth: newArtwork != nil ? 1.5 : 1))
-            .dropDestination(for: URL.self) { urls, _ in
-                guard let url = urls.first else { return false }
-                return loadArtwork(from: url)
+            .onDrop(of: [.image, .fileURL, .url], isTargeted: nil) { providers in
+                // Archivo desde Finder o imagen arrastrada desde el navegador.
+                Task { await loadArtwork(fromDropped: providers) }
+                return true
             }
 
             Button("Cambiar carátula…") { chooseArtwork() }
                 .buttonStyle(OutlineButtonStyle())
+
+            Button {
+                Task { await pasteArtwork() }
+            } label: {
+                Label(isLoadingArtwork ? "Descargando…" : "Pegar imagen", systemImage: "doc.on.clipboard")
+            }
+            .buttonStyle(OutlineButtonStyle())
+            .disabled(isLoadingArtwork)
+            .help("Usa la imagen copiada (en el navegador: clic derecho → Copiar imagen)")
 
             if newArtwork != nil {
                 Button("Descartar carátula nueva") {
@@ -133,7 +144,7 @@ struct TagEditorView: View {
                 .foregroundStyle(Theme.accentText)
             }
 
-            Text(artworkError ?? "Se incrusta en cada archivo. También puedes arrastrar una imagen.")
+            Text(artworkError ?? "Se incrusta en cada archivo. También puedes pegar una imagen copiada o arrastrarla.")
                 .font(.system(size: 11))
                 .foregroundStyle(artworkError == nil ? Theme.secondaryText : Theme.accentText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -157,6 +168,62 @@ struct TagEditorView: View {
         panel.message = "Elige la carátula para \(isBatch ? "estas canciones" : "esta canción")"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         _ = loadArtwork(from: url)
+    }
+
+    /// "Pegar imagen": la imagen copiada (navegador, Vista Previa), un archivo de imagen copiado en Finder
+    /// o la dirección web de una imagen ("Copiar dirección de imagen"), que se descarga.
+    private func pasteArtwork() async {
+        let pasteboard = NSPasteboard.general
+        if let data = ArtworkImport.imageData(from: pasteboard) {
+            useArtwork(data)
+            return
+        }
+        if let url = ArtworkImport.webImageURL(from: pasteboard) {
+            await download(url)
+            return
+        }
+        artworkError = "No hay una imagen copiada. En el navegador: clic derecho en la imagen → Copiar imagen."
+    }
+
+    private func loadArtwork(fromDropped providers: [NSItemProvider]) async {
+        for provider in providers {
+            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
+               let url = await ArtworkImport.loadURL(provider, type: .fileURL) {
+                _ = loadArtwork(from: url)
+                return
+            }
+            if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier),
+               let data = await ArtworkImport.loadData(provider, type: .image) {
+                useArtwork(data)
+                return
+            }
+            if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
+               let url = await ArtworkImport.loadURL(provider, type: .url), url.scheme?.hasPrefix("http") == true {
+                await download(url)
+                return
+            }
+        }
+        artworkError = "No se pudo usar esa imagen."
+    }
+
+    private func download(_ url: URL) async {
+        isLoadingArtwork = true
+        defer { isLoadingArtwork = false }
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else {
+            artworkError = "No se pudo descargar la imagen."
+            return
+        }
+        useArtwork(data)
+    }
+
+    private func useArtwork(_ data: Data) {
+        guard let artwork = ArtworkImport.prepare(data), let image = NSImage(data: artwork.data) else {
+            artworkError = "No se pudo usar esa imagen."
+            return
+        }
+        artworkError = nil
+        newArtwork = artwork
+        newArtworkImage = image
     }
 
     private func loadArtwork(from url: URL) -> Bool {
@@ -400,6 +467,45 @@ private struct TagFieldBox: View {
 enum ArtworkImport {
     static let maxDimension = 1600
     static let maxBytes = 3 * 1024 * 1024
+
+    /// Imagen del portapapeles: datos de imagen (PNG, JPEG, TIFF…) o un archivo de imagen copiado en Finder.
+    static func imageData(from pasteboard: NSPasteboard) -> Data? {
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self],
+                                             options: [.urlReadingFileURLsOnly: true]) as? [URL],
+           let file = urls.first, let data = try? Data(contentsOf: file), prepare(data) != nil {
+            return data
+        }
+        for type in [NSPasteboard.PasteboardType.png, NSPasteboard.PasteboardType(UTType.jpeg.identifier),
+                     NSPasteboard.PasteboardType(UTType.webP.identifier), .tiff] {
+            if let data = pasteboard.data(forType: type), prepare(data) != nil { return data }
+        }
+        if let image = NSImage(pasteboard: pasteboard), let tiff = image.tiffRepresentation { return tiff }
+        return nil
+    }
+
+    /// Dirección web copiada ("Copiar dirección de imagen"): se descarga al pegar.
+    static func webImageURL(from pasteboard: NSPasteboard) -> URL? {
+        let text = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let text, let url = URL(string: text), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+            return url
+        }
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+           let url = urls.first(where: { ["http", "https"].contains($0.scheme?.lowercased() ?? "") }) {
+            return url
+        }
+        return nil
+    }
+
+    static func loadData(_ provider: NSItemProvider, type: UTType) async -> Data? {
+        await withCheckedContinuation { continuation in
+            _ = provider.loadDataRepresentation(for: type) { data, _ in continuation.resume(returning: data) }
+        }
+    }
+
+    static func loadURL(_ provider: NSItemProvider, type: UTType) async -> URL? {
+        guard let data = await loadData(provider, type: type) else { return nil }
+        return URL(dataRepresentation: data, relativeTo: nil)
+    }
 
     static func prepare(_ data: Data) -> TagChanges.Artwork? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),

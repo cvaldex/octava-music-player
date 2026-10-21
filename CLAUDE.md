@@ -196,3 +196,4 @@ Actualiza esta lista al cerrar cada fase.
 - `tools/build-runner.command` se cierra solo tras 24 h sin pedidos (antes 3 h): si no responde, hay que volver a abrirlo.
 - `TagReader`: si AVURLAsset rechaza un MP3 ("This media may be damaged", -11849) pero AVAudioFile lo abre, se usa `readWithoutAVAsset` (tags con el lector propio, duración con AVAudioFile). Pasó con "11 - Corynorhinus" de Batman Begins, que se reproduce bien.
 - Menú del Dock: `AppDelegate.applicationDockMenu` (canción actual + controles), con `ClosureMenuItem`. El modelo llega por `AppDelegate.model`, que asigna RootView. El texto al pasar el cursor por el Dock no se puede cambiar (macOS muestra el nombre de la app).
+- Editor de tags: "Pegar imagen" (`ArtworkImport.imageData(from:)`: datos de imagen, archivo copiado en Finder; o `webImageURL` para descargar una dirección copiada). La carátula también acepta imágenes arrastradas desde el navegador.
