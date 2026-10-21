@@ -6,6 +6,45 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static let skipQuitConfirmationKey = "skipQuitConfirmation"
 
+    /// Modelo de la app, para el menú del Dock (lo asigna la vista raíz al aparecer).
+    @MainActor static weak var model: AppModel?
+
+    /// Clic derecho en el ícono del Dock: la canción que suena y los controles básicos.
+    @MainActor
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        guard let model = Self.model else { return nil }
+        let player = model.player
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        if let track = player.currentTrack {
+            let header = NSMenuItem(title: "\(track.title) — \(track.performer)", action: nil, keyEquivalent: "")
+            header.isEnabled = false
+            menu.addItem(header)
+            menu.addItem(.separator())
+        }
+        let hasTrack = player.currentTrack != nil
+        menu.addItem(ClosureMenuItem(player.isPlaying ? "Pausar" : "Reproducir", enabled: hasTrack || !player.queue.isEmpty) {
+            player.togglePlayPause()
+        })
+        menu.addItem(ClosureMenuItem("Siguiente", enabled: hasTrack) { player.next() })
+        menu.addItem(ClosureMenuItem("Anterior", enabled: hasTrack) { player.previous() })
+        menu.addItem(ClosureMenuItem("Detener", enabled: hasTrack) { player.stopPlayback() })
+        let stopAfter = ClosureMenuItem("Detener al terminar esta canción", enabled: hasTrack) {
+            player.toggleStopAfterCurrent()
+        }
+        stopAfter.state = player.stopsAfterCurrent ? .on : .off
+        menu.addItem(stopAfter)
+        if let track = player.currentTrack {
+            menu.addItem(.separator())
+            let isFavorite = model.library.isFavorite(track)
+            menu.addItem(ClosureMenuItem(isFavorite ? "Quitar de favoritos" : "Agregar a favoritos", enabled: true) {
+                model.library.toggleFavorite(track)
+            })
+        }
+        return menu
+    }
+
     /// Al cerrar la ventana principal se cierra la app (y se detiene la música).
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
@@ -83,4 +122,20 @@ private final class WindowCloseGuard: NSObject, NSWindowDelegate {
         }
         return super.forwardingTarget(for: aSelector)
     }
+}
+
+/// Ítem de menú que ejecuta un bloque (para menús armados en código, como el del Dock).
+final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, enabled: Bool, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(run), keyEquivalent: "")
+        target = self
+        isEnabled = enabled
+    }
+
+    required init(coder: NSCoder) { fatalError("init(coder:) no se usa") }
+
+    @objc private func run() { handler() }
 }

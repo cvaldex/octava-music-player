@@ -195,3 +195,4 @@ Actualiza esta lista al cerrar cada fase.
 - Importar listas (Archivo → Importar lista…): `PlaylistImport` lee XSPF y M3U/M3U8 y busca cada canción por ruta relativa a la carpeta de música, luego por el final de la ruta (listas de otro computador) y por título + artista. Avisa las que no encontró.
 - `tools/build-runner.command` se cierra solo tras 24 h sin pedidos (antes 3 h): si no responde, hay que volver a abrirlo.
 - `TagReader`: si AVURLAsset rechaza un MP3 ("This media may be damaged", -11849) pero AVAudioFile lo abre, se usa `readWithoutAVAsset` (tags con el lector propio, duración con AVAudioFile). Pasó con "11 - Corynorhinus" de Batman Begins, que se reproduce bien.
+- Menú del Dock: `AppDelegate.applicationDockMenu` (canción actual + controles), con `ClosureMenuItem`. El modelo llega por `AppDelegate.model`, que asigna RootView. El texto al pasar el cursor por el Dock no se puede cambiar (macOS muestra el nombre de la app).

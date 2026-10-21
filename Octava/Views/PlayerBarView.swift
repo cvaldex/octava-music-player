@@ -36,6 +36,9 @@ struct PlayerBarView: View {
             if let track, let coverAlbum = album(for: track) {
                 AlbumCoverView(album: coverAlbum, cornerRadius: 5)
                     .frame(width: 48, height: 48)
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.revealCurrentTrack() }
+                    .help("Ir al disco (⌘L)")
             } else {
                 RoundedRectangle(cornerRadius: 5)
                     .fill(Theme.control)

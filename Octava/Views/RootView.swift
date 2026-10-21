@@ -55,6 +55,7 @@ struct RootView: View {
         }
         .environment(navigator)
         .task {
+            AppDelegate.model = model
             // Esperar a que la ventana esté en pantalla antes de mostrar el diálogo.
             try? await Task.sleep(for: .milliseconds(600))
             model.promptForFolderOnLaunchIfNeeded()
