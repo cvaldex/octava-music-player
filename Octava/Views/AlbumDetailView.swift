@@ -187,6 +187,7 @@ struct TrackList: View {
                 Text("TÍTULO").frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 12)
                 Text("ESCUCHAS").frame(width: 90, alignment: .trailing).padding(.trailing, 12)
                 Color.clear.frame(width: 40)
+                Text("BITRATE").frame(width: 80, alignment: .trailing)
                 Text("DURACIÓN").frame(width: 72, alignment: .trailing).padding(.trailing, 8)
             }
             .font(.system(size: 11, weight: .semibold))
@@ -333,6 +334,11 @@ struct TrackRow: View {
             .buttonStyle(.plain)
             .frame(width: 40)
             .accessibilityLabel(track.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos")
+
+            Text(track.bitrateLabel)
+                .font(Theme.mono(12))
+                .foregroundStyle(Theme.secondaryText)
+                .frame(width: 80, alignment: .trailing)
 
             Text(formatDuration(track.duration))
                 .font(Theme.mono(12))

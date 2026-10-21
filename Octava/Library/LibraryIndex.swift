@@ -80,5 +80,8 @@ extension Track {
     /// Claves no opcionales para ordenar en tablas.
     var sortYear: Int { year ?? 0 }
     var sortGenre: String { genre ?? "" }
+    var sortBitrate: Int { bitrate ?? 0 }
+    /// "320 kbps" (vacío si no se conoce).
+    var bitrateLabel: String { bitrate.map { "\($0) kbps" } ?? "" }
     var sortTrackNumber: Int { (discNumber ?? 1) * 1000 + (trackNumber ?? 0) }
 }

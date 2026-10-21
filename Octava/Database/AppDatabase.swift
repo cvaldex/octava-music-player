@@ -169,6 +169,18 @@ final class AppDatabase: Sendable {
             }
         }
 
+        // v9: el bitrate se calcula cuando AVFoundation no lo estima. Se releen las canciones que no lo tenían.
+        migrator.registerMigration("v9") { db in
+            try db.execute(sql: "UPDATE track SET fileModifiedAt = ? WHERE bitrate IS NULL",
+                           arguments: [Date(timeIntervalSince1970: 0)])
+        }
+
+        // v10: duración corregida con AVAudioFile cuando AVURLAsset la mide mal (etiquetas dañadas; 38 canciones,
+        // varias con bitrate ya guardado, así que no se pueden distinguir en SQL). Se relee toda la colección una vez.
+        migrator.registerMigration("v10") { db in
+            try db.execute(sql: "UPDATE track SET fileModifiedAt = ?", arguments: [Date(timeIntervalSince1970: 0)])
+        }
+
         return migrator
     }
 }

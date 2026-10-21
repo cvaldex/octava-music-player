@@ -279,6 +279,18 @@ final class ID3TagWriterTests: XCTestCase {
         XCTAssertGreaterThan(tags.duration, 4)
     }
 
+    /// Bitrate calculado (cuando AVFoundation no lo estima): sin contar las etiquetas.
+    func testAverageBitrateIgnoresTags() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("octava-bitrate-\(UUID().uuidString).mp3")
+        let frames = 400 // 417 bytes por trama = 128 kbps a 44,1 kHz
+        let bytes = tag(major: 3, frames: [frame("APIC", apic(type: 3, data: [UInt8](repeating: 7, count: 50_000)), major: 3)])
+            + audio(frames: frames) + id3v1(title: "x", track: 1, genre: 17)
+        try Data(bytes).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let duration = Double(frames) * 1152 / 44100
+        XCTAssertEqual(TagReader.averageBitrate(url: url, duration: duration), 128)
+    }
+
     func testV22PictureFormats() {
         let png: [UInt8] = [0x00] + Array("PNG".utf8) + [0x03, 0x00, 0x89]
         let apic = ID3v22.pictureToAPIC(png)

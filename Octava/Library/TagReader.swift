@@ -90,6 +90,19 @@ enum TagReader {
            let rate = try? await audioTrack.load(.estimatedDataRate), rate > 0 {
             tags.bitrate = Int((Double(rate) / 1000).rounded())
         }
+        // AVFoundation deja la estimación en 0 en muchos archivos (casi la mitad de la colección):
+        // se calcula con el tamaño del audio y la duración (promedio; exacto en archivos de bitrate fijo).
+        if tags.bitrate == nil {
+            tags.bitrate = averageBitrate(url: url, duration: tags.duration)
+        }
+        // Duración imposible para el tamaño del archivo (más de 500 kbps; el máximo de MP3 es 320): pasa con
+        // etiquetas mal escritas que dejan datos de la carátula donde empieza el audio (Unisonic, "Light Of Dawn":
+        // AVURLAsset decía 10 s en canciones de 5 min). AVAudioFile, que es lo que reproduce, la mide bien.
+        if let raw = rawKbps(url: url, duration: tags.duration), raw > 500,
+           let file = try? AVAudioFile(forReading: url), file.length > 0 {
+            tags.duration = Double(file.length) / file.fileFormat.sampleRate
+            tags.bitrate = averageBitrate(url: url, duration: tags.duration)
+        }
         return tags
     }
 
@@ -117,10 +130,35 @@ enum TagReader {
         let userText = ID3UserTextReader.read(url: url)
         tags.replayGainTrack = ReplayGain.parse(userText["REPLAYGAIN_TRACK_GAIN"])
         tags.replayGainAlbum = ReplayGain.parse(userText["REPLAYGAIN_ALBUM_GAIN"])
-        if tags.duration > 0, let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize {
-            tags.bitrate = Int((Double(size) * 8 / tags.duration / 1000).rounded())
-        }
+        tags.bitrate = averageBitrate(url: url, duration: tags.duration)
         return tags
+    }
+
+    /// kbps promedio: bytes de audio (sin las etiquetas ID3v2 e ID3v1) × 8 / duración. nil si no es plausible.
+    static func averageBitrate(url: URL, duration: Double) -> Int? {
+        guard let kbps = rawKbps(url: url, duration: duration) else { return nil }
+        return (8...500).contains(kbps) ? kbps : nil
+    }
+
+    /// kbps sin validar (sirve también para detectar una duración equivocada).
+    static func rawKbps(url: URL, duration: Double) -> Int? {
+        guard duration > 1, let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let size = try? handle.seekToEnd(), size > 0 else { return nil }
+        var audioBytes = Int(size)
+        try? handle.seek(toOffset: 0)
+        if let header = try? handle.read(upToCount: 10), header.count == 10 {
+            let b = [UInt8](header)
+            if b[0] == 0x49, b[1] == 0x44, b[2] == 0x33, b[6] < 0x80, b[7] < 0x80, b[8] < 0x80, b[9] < 0x80 {
+                audioBytes -= 10 + ID3TagWriter.synchsafe(b[6], b[7], b[8], b[9])
+            }
+        }
+        if size >= 128 {
+            try? handle.seek(toOffset: size - 128)
+            if let tail = try? handle.read(upToCount: 3), tail == Data("TAG".utf8) { audioBytes -= 128 }
+        }
+        guard audioBytes > 0 else { return nil }
+        return Int((Double(audioBytes) * 8 / duration / 1000).rounded())
     }
 
     /// "3/11" → 3

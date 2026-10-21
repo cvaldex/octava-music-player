@@ -86,6 +86,14 @@ struct TrackTable: View {
             }
             .width(24)
 
+            TableColumn("Bitrate", value: \Track.sortBitrate) { (track: Track) in
+                Text(track.bitrateLabel)
+                    .font(Theme.mono(12))
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .width(min: 60, ideal: 68)
+
             TableColumn("Duración", value: \Track.duration) { (track: Track) in
                 Text(formatDuration(track.duration))
                     .font(Theme.mono(12))
