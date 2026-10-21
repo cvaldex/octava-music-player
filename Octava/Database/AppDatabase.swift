@@ -161,6 +161,14 @@ final class AppDatabase: Sendable {
                 """, arguments: [Date(timeIntervalSince1970: 0)])
         }
 
+        // v8: fecha de agregado por canción (para "Canciones cortas" y el orden "Agregados" de Álbumes).
+        // Queda vacía; el escáner la completa con la fecha de creación de cada archivo.
+        migrator.registerMigration("v8") { db in
+            try db.alter(table: "track") { t in
+                t.add(column: "addedAt", .datetime)
+            }
+        }
+
         return migrator
     }
 }

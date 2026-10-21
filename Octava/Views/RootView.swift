@@ -158,6 +158,8 @@ struct RootView: View {
                 FavoritesView()
             case .mostPlayed:
                 MostPlayedView()
+            case .shortSongs:
+                ShortSongsView()
             case .forgotten:
                 ForgottenView()
             case .playlist(let id):

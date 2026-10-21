@@ -2,7 +2,7 @@ import SwiftUI
 
 enum SidebarItem: Hashable, Identifiable {
     case albums, artists, songs, genres, favorites
-    case mostPlayed, forgotten
+    case mostPlayed, forgotten, shortSongs
     /// Lista guardada (id en la base de datos).
     case playlist(Int64)
 
@@ -22,6 +22,7 @@ enum SidebarItem: Hashable, Identifiable {
         case .favorites: "Favoritos"
         case .mostPlayed: "Más escuchadas"
         case .forgotten: "Hace tiempo sin oír"
+        case .shortSongs: "Canciones cortas"
         case .playlist: "Lista"
         }
     }
@@ -35,6 +36,7 @@ enum SidebarItem: Hashable, Identifiable {
         case .favorites: "heart"
         case .mostPlayed: "chart.bar"
         case .forgotten: "clock.arrow.circlepath"
+        case .shortSongs: "timer"
         case .playlist: "music.note.list"
         }
     }
@@ -80,6 +82,14 @@ struct SidebarView: View {
                 .buttonStyle(.plain)
                 .disabled(model.library.trackCount == 0)
                 .help("Mezcla aleatoria de toda la colección (⇧⌘S): se rellena sola")
+                // Cuarta lista fija (después de la mezcla aleatoria, a pedido del usuario).
+                Label {
+                    Text(SidebarItem.shortSongs.title)
+                } icon: {
+                    Image(systemName: SidebarItem.shortSongs.systemImage).foregroundStyle(Theme.accent)
+                }
+                .tag(SidebarItem.shortSongs)
+                .help("Lista que se actualiza sola: \(ShortSongs.ruleDescription)")
                 ForEach(playlists) { playlist in
                     if let id = playlist.id {
                         Label(playlist.name, systemImage: "music.note.list")

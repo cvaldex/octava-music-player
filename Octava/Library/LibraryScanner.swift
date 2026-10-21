@@ -160,7 +160,32 @@ actor LibraryScanner {
             summary.removed = try await removeMissing(seen: seen)
         }
         missingPaths.removeAll()
+        try await fillMissingAddedDates(root: root)
         return summary
+    }
+
+    /// Canciones sin fecha de agregado (las que ya existían antes de la migración v8): se usa la fecha de creación
+    /// del archivo, que es lo más cercano a cuándo entró a la colección. Luego cada disco toma la de su canción más
+    /// antigua. Solo hace trabajo la primera vez.
+    private func fillMissingAddedDates(root: URL) async throws {
+        let paths = try await database.writer.read { db in
+            try String.fetchAll(db, sql: "SELECT relativePath FROM track WHERE addedAt IS NULL")
+        }
+        guard !paths.isEmpty else { return }
+        let dates: [(String, Date)] = paths.map { path in
+            let values = try? root.appendingPathComponent(path)
+                .resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+            return (path, values?.creationDate ?? values?.contentModificationDate ?? Date())
+        }
+        try await database.writer.write { db in
+            for (path, date) in dates {
+                try db.execute(sql: "UPDATE track SET addedAt = ? WHERE relativePath = ?", arguments: [date, path])
+            }
+            try db.execute(sql: """
+                UPDATE album SET addedAt = (SELECT MIN(addedAt) FROM track WHERE track.albumId = album.id)
+                WHERE EXISTS (SELECT 1 FROM track WHERE track.albumId = album.id AND track.addedAt IS NOT NULL)
+                """)
+        }
     }
 
     // MARK: Guardado
@@ -205,7 +230,8 @@ actor LibraryScanner {
                              title: "",
                              artist: "",
                              album: "",
-                             duration: 0)
+                             duration: 0,
+                             addedAt: Date())
                 track.fileModifiedAt = file.modifiedAt
                 track.title = Self.nonEmpty(tags.title) ?? Self.titleFromFileName(file.relativePath)
                 track.artist = Self.nonEmpty(tags.artist) ?? artistForGrouping
@@ -235,6 +261,11 @@ actor LibraryScanner {
                     UPDATE album SET year = (SELECT MIN(year) FROM track WHERE albumId = ? AND year IS NOT NULL)
                     WHERE id = ?
                     """, arguments: [albumId, albumId])
+                // Fecha de agregado del disco: la de su canción más antigua.
+                try db.execute(sql: """
+                    UPDATE album SET addedAt = (SELECT MIN(addedAt) FROM track WHERE albumId = ? AND addedAt IS NOT NULL)
+                    WHERE id = ? AND EXISTS (SELECT 1 FROM track WHERE albumId = ? AND addedAt IS NOT NULL)
+                    """, arguments: [albumId, albumId, albumId])
             }
             return (Array(jobs.values), movedFrom)
         }

@@ -280,3 +280,70 @@ struct ForgottenView: View {
         .background(Theme.surface)
     }
 }
+
+// MARK: - Canciones cortas
+
+/// Regla de la lista fija "Canciones cortas": más de 30 s (el mínimo para que Last.fm cuente la escucha) y menos
+/// de 211 s, sin "07 - Drumless Tracks". Se calcula cada vez desde la biblioteca, así que se actualiza sola.
+/// Orden: por fecha de agregado, lo más nuevo al final (y dentro de un mismo momento, por ruta: el orden del disco).
+enum ShortSongs {
+    static let minimumDuration: TimeInterval = 30
+    static let maximumDuration: TimeInterval = 211
+    static let excludedFolders = ["07 - Drumless Tracks/"]
+    static let ruleDescription = "canciones de más de 30 segundos y menos de 3:31, sin Drumless Tracks"
+
+    static func matches(_ track: Track) -> Bool {
+        track.duration > minimumDuration && track.duration < maximumDuration
+            && !excludedFolders.contains { track.relativePath.hasPrefix($0) }
+    }
+
+    static func tracks(in library: [Track]) -> [Track] {
+        library.filter(matches).sorted { a, b in
+            let dateA = a.addedAt ?? .distantPast
+            let dateB = b.addedAt ?? .distantPast
+            if dateA != dateB { return dateA < dateB }
+            return a.relativePath.localizedStandardCompare(b.relativePath) == .orderedAscending
+        }
+    }
+}
+
+struct ShortSongsView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let tracks = model.shortSongs
+        let duration = tracks.reduce(0) { $0 + $1.duration }
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(title: "Canciones cortas",
+                       subtitle: "\(countLabel(tracks.count, singular: "canción", plural: "canciones")) · \(formatLongDuration(duration)) · \(ShortSongs.ruleDescription)") {
+                Button {
+                    model.play(tracks: tracks)
+                } label: {
+                    Label("Reproducir", systemImage: "play.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .buttonStyle(AccentButtonStyle())
+                .disabled(tracks.isEmpty)
+                Button {
+                    model.playShuffled(tracks: tracks)
+                } label: {
+                    Label("Mezclar", systemImage: "shuffle").font(.system(size: 13))
+                }
+                .buttonStyle(OutlineButtonStyle())
+                .disabled(tracks.isEmpty)
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 28)
+
+            if tracks.isEmpty {
+                ContentUnavailableView("Sin canciones cortas",
+                                       systemImage: "timer",
+                                       description: Text("Aquí aparecen las \(ShortSongs.ruleDescription)."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                TrackTable(tracks: tracks)
+            }
+        }
+        .background(Theme.surface)
+    }
+}

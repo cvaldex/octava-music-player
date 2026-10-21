@@ -648,6 +648,11 @@ final class AppModel {
     }
 
     /// Canciones no escuchadas en más de 6 meses (o nunca), de la más olvidada a la menos.
+    /// "Canciones cortas": ver `ShortSongs`.
+    var shortSongs: [Track] {
+        ShortSongs.tracks(in: library.tracks)
+    }
+
     var forgottenTracks: [Track] {
         let now = Date()
         return library.tracks

@@ -28,6 +28,9 @@ struct Track: Codable, Identifiable, Hashable, FetchableRecord, MutablePersistab
     var isFavorite: Bool = false
 
     var albumId: Int64?
+    /// Cuándo entró la canción a la colección: al descubrirla Octava; para las anteriores a la migración v8,
+    /// la fecha de creación del archivo.
+    var addedAt: Date?
 
     static let databaseTableName = "track"
 
@@ -39,6 +42,7 @@ struct Track: Codable, Identifiable, Hashable, FetchableRecord, MutablePersistab
         static let trackNumber = Column(CodingKeys.trackNumber)
         static let discNumber = Column(CodingKeys.discNumber)
         static let albumId = Column(CodingKeys.albumId)
+        static let addedAt = Column(CodingKeys.addedAt)
         static let playCount = Column(CodingKeys.playCount)
         static let lastPlayedAt = Column(CodingKeys.lastPlayedAt)
         static let isFavorite = Column(CodingKeys.isFavorite)
