@@ -7,8 +7,6 @@ struct RootView: View {
     @State private var navigator = Navigator()
     @State private var query = ""
     @AppStorage("showQueue") private var showQueue = true
-    /// Disco a mostrar después de cambiar de sección (⌘L desde otra sección).
-    @State private var pendingReveal: Album?
 
     private var isSearching: Bool {
         !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -64,10 +62,6 @@ struct RootView: View {
         .onChange(of: selection) {
             navigator.reset()
             query = ""
-            if let album = pendingReveal {
-                pendingReveal = nil
-                navigator.show(.album(album))
-            }
         }
         .onChange(of: model.showPlaylistRequest) { _, id in
             guard let id else { return }
@@ -76,13 +70,20 @@ struct RootView: View {
         }
         .onChange(of: model.revealCurrentRequest) {
             guard let album = model.library.album(id: model.player.currentTrack?.albumId) else { return }
+            // El disco se abre en la sección actual (todas comparten la pila de navegación). Antes se cambiaba a
+            // Álbumes y se abría el disco en el mismo paso, pero el cambio de página raíz descartaba la navegación
+            // y quedaba la grilla (había que hacer clic dos veces).
+            let wasSearching = isSearching
             query = ""
-            if selection == .albums {
-                navigator.reset()
-                navigator.show(.album(album))
+            navigator.reset()
+            if wasSearching {
+                // Al borrar la búsqueda cambia la página raíz: abrir el disco en el ciclo siguiente.
+                Task { @MainActor in
+                    await Task.yield()
+                    navigator.show(.album(album))
+                }
             } else {
-                pendingReveal = album
-                selection = .albums
+                navigator.show(.album(album))
             }
         }
         .onChange(of: query) { old, new in
