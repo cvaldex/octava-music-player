@@ -7,9 +7,33 @@ struct AlbumDetailView: View {
     let album: Album
 
     @State private var tracks: [Track] = []
+    /// Disco que se muestra: parte del de la navegación, pero sigue a sus canciones si al editar los tags
+    /// cambia de título o de artista (Octava lo trata como otro disco).
+    @State private var currentAlbumID: Int64?
+
+    /// Datos actuales del disco (título, año, carátula), no los de cuando se abrió la página.
+    private var shown: Album {
+        model.library.album(id: currentAlbumID ?? album.id) ?? album
+    }
 
     private var totalMinutes: Int {
         Int((tracks.reduce(0) { $0 + $1.duration } / 60).rounded())
+    }
+
+    private func refreshTracks() {
+        let library = model.library
+        var albumID = currentAlbumID ?? album.id
+        var list = library.tracks(forAlbumID: albumID)
+        if list.isEmpty, !tracks.isEmpty {
+            // Sus canciones quedaron en otro disco (se cambió el título o el artista al editar): seguirlas.
+            let moved = library.tracks(ids: tracks.compactMap(\.id)).compactMap(\.albumId)
+            if let newID = Dictionary(grouping: moved, by: { $0 }).max(by: { $0.value.count < $1.value.count })?.key {
+                albumID = newID
+                list = library.tracks(forAlbumID: newID)
+            }
+        }
+        currentAlbumID = albumID
+        tracks = list
     }
 
     var body: some View {
@@ -18,7 +42,7 @@ struct AlbumDetailView: View {
                 header
                 TrackList(tracks: tracks,
                           currentTrackId: model.player.currentTrack?.id,
-                          onPlay: { index in model.play(album: album, startingAt: index) },
+                          onPlay: { index in model.play(album: shown, startingAt: index) },
                           onPlayNext: { track in model.playNext([track]) },
                           onAddToQueue: { track in model.addToQueue([track]) },
                           onToggleFavorite: { track in
@@ -33,9 +57,9 @@ struct AlbumDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .background(Theme.surface)
-        .navigationTitle(album.title)
+        .navigationTitle(shown.title)
         .task(id: model.library.revision) {
-            tracks = model.library.tracks(for: album)
+            refreshTracks()
         }
     }
 
@@ -61,23 +85,23 @@ struct AlbumDetailView: View {
     }
 
     private func cover(size: CGFloat) -> some View {
-        AlbumCoverView(album: album, cornerRadius: 8)
+        AlbumCoverView(album: shown, cornerRadius: 8)
             .frame(width: size, height: size)
             .shadow(color: Theme.ink.opacity(0.18), radius: 12, y: 8)
     }
 
     private func info(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(album.year.map { "ÁLBUM · \(String($0))" } ?? "ÁLBUM")
+            Text(shown.year.map { "ÁLBUM · \(String($0))" } ?? "ÁLBUM")
                 .font(.system(size: 11, weight: .semibold))
                 .tracking(0.9)
                 .foregroundStyle(Theme.tertiaryText)
-            Text(album.title)
+            Text(shown.title)
                 .font(.system(size: compact ? 30 : 40, weight: .bold))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
                 .padding(.top, 6)
-            Text(album.albumArtist)
+            Text(shown.albumArtist)
                 .font(.system(size: 17))
                 .foregroundStyle(Theme.navText)
                 .lineLimit(1)
@@ -98,7 +122,7 @@ struct AlbumDetailView: View {
     private func actionButtons(compact: Bool) -> some View {
         HStack(spacing: 10) {
             Button {
-                model.play(album: album)
+                model.play(album: shown)
             } label: {
                 Label("Reproducir disco", systemImage: "play.fill")
                     .font(.system(size: 13, weight: .semibold))
@@ -106,7 +130,7 @@ struct AlbumDetailView: View {
             .buttonStyle(AccentButtonStyle())
 
             Button {
-                model.playShuffled(album: album)
+                model.playShuffled(album: shown)
             } label: {
                 secondaryLabel("Aleatorio", systemImage: "shuffle", compact: compact)
             }
@@ -114,10 +138,10 @@ struct AlbumDetailView: View {
             .help("Reproducir el disco en orden aleatorio")
 
             Menu {
-                Button("Reproducir a continuación") { model.playNext(album: album) }
-                Button("Agregar al final de la cola") { model.addToQueue(album: album) }
+                Button("Reproducir a continuación") { model.playNext(album: shown) }
+                Button("Agregar al final de la cola") { model.addToQueue(album: shown) }
                 Divider()
-                AddToPlaylistMenu(tracks: model.library.tracks(for: album), model: model)
+                AddToPlaylistMenu(tracks: model.library.tracks(for: shown), model: model)
             } label: {
                 secondaryLabel("Cola", systemImage: "text.line.first.and.arrowtriangle.forward", compact: compact)
             }
@@ -130,7 +154,7 @@ struct AlbumDetailView: View {
             .help("Agregar el disco a la cola")
 
             Button {
-                model.editTags(album: album)
+                model.editTags(album: shown)
             } label: {
                 secondaryLabel("Editar tags", systemImage: "pencil", compact: compact)
             }

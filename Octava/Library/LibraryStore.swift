@@ -58,6 +58,8 @@ final class LibraryStore {
             albums = loadedAlbums
             tracks = Self.sortedForLibrary(loadedTracks)
             rebuildIndexes()
+            // Las vistas que cargan sus canciones una vez (página del disco) se refrescan con esto.
+            revision += 1
         } catch {
             print("Octava: error al leer la biblioteca: \(error)")
         }
@@ -87,7 +89,11 @@ final class LibraryStore {
 
     /// Pistas de un disco en orden de disco y pista.
     func tracks(for album: Album) -> [Track] {
-        guard let albumId = album.id else { return [] }
+        tracks(forAlbumID: album.id)
+    }
+
+    func tracks(forAlbumID albumId: Int64?) -> [Track] {
+        guard let albumId else { return [] }
         return tracks
             .filter { $0.albumId == albumId }
             .sorted { ($0.sortTrackNumber, $0.title) < ($1.sortTrackNumber, $1.title) }

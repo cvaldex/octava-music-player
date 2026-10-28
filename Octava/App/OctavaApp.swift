@@ -69,11 +69,6 @@ struct OctavaApp: App {
                 Button("Detener") { model.player.stopPlayback() }
                     .keyboardShortcut(".", modifiers: .command)
                     .disabled(model.player.currentTrack == nil)
-                Toggle("Detener al terminar esta canción",
-                       isOn: Binding(get: { model.player.stopsAfterCurrent },
-                                     set: { model.player.setStopAfterCurrent($0) }))
-                    .keyboardShortcut(".", modifiers: [.command, .option])
-                    .disabled(model.player.currentTrack == nil)
                 Divider()
                 Button("Mezcla aleatoria de toda la colección") { model.playShuffledLibrary() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])

@@ -78,7 +78,63 @@ struct TagEditorView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.secondaryText)
                 .lineLimit(1)
+            location
+                .padding(.top, 6)
         }
+    }
+
+    // MARK: Ubicación
+
+    /// Carpetas de las canciones, relativas a la carpeta de música.
+    private var folders: [String] {
+        Array(Set(tracks.map { ($0.relativePath as NSString).deletingLastPathComponent })).sorted()
+    }
+
+    /// Ruta completa (se muestra al pasar el cursor).
+    private func fullPath(_ relative: String) -> String {
+        model.musicFolder?.appendingPathComponent(relative).path ?? relative
+    }
+
+    /// Carpeta del disco (y archivo, con una canción): ruta relativa, completa al pasar el cursor, y "Mostrar en Finder".
+    private var location: some View {
+        let folders = self.folders
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "folder")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.tertiaryText)
+            VStack(alignment: .leading, spacing: 2) {
+                if folders.count == 1 {
+                    Text(folders[0].isEmpty ? "Carpeta de música" : folders[0])
+                        .help(fullPath(folders[0]))
+                    if !isBatch, let track = tracks.first {
+                        Text((track.relativePath as NSString).lastPathComponent)
+                            .foregroundStyle(Theme.ink)
+                            .help(fullPath(track.relativePath))
+                    }
+                } else {
+                    Text("En \(folders.count) carpetas")
+                        .help(folders.map(fullPath).joined(separator: "\n"))
+                }
+            }
+            .font(Theme.mono(11))
+            .foregroundStyle(Theme.secondaryText)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .textSelection(.enabled)
+            Spacer(minLength: 8)
+            Button("Mostrar en Finder") { revealInFinder() }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Theme.accentText)
+                .disabled(model.musicFolder == nil)
+                .help("Abre la carpeta en Finder con \(isBatch ? "las canciones seleccionadas" : "el archivo") marcado")
+        }
+    }
+
+    private func revealInFinder() {
+        guard let root = model.musicFolder else { return }
+        let urls = tracks.prefix(100).map { root.appendingPathComponent($0.relativePath) }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 
     private var subtitle: String {

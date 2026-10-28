@@ -216,20 +216,43 @@ final class PlaybackEngine {
         stopAfterEntryID != nil && stopAfterEntryID == queue.currentEntry?.id
     }
 
-    /// Activa o desactiva "Detener al terminar esta canción".
+    /// Activa o desactiva "Detener al terminar esta canción" para la canción actual.
     func setStopAfterCurrent(_ enabled: Bool) {
         guard let entry = queue.currentEntry else {
             stopAfterEntryID = nil
             return
         }
-        stopAfterEntryID = enabled ? entry.id : nil
-        if enabled, prescheduled != nil {
+        if enabled {
+            setStopAfter(entryID: entry.id)
+        } else if stopsAfterCurrent {
+            setStopAfter(entryID: nil)
+        }
+    }
+
+    /// Marca la entrada de la cola tras la cual se detiene la reproducción (una sola a la vez), o la quita.
+    func toggleStopAfter(entryID: UUID) {
+        setStopAfter(entryID: stopAfterEntryID == entryID ? nil : entryID)
+    }
+
+    func setStopAfter(entryID: UUID?) {
+        stopAfterEntryID = entryID
+        pruneStopTarget()
+        if stopsAfterCurrent, prescheduled != nil {
             // La siguiente ya estaba programada (gapless): descartarla reprogramando la actual desde donde va.
             updateCurrentTimeFromPlayer()
             seek(to: currentTime)
             prescheduleAttemptedSegment = -1
         }
         onStateChanged?()
+    }
+
+    /// La marca deja de valer si su canción ya no está en la cola o quedó atrás (se saltó más allá de ella).
+    private func pruneStopTarget() {
+        guard let id = stopAfterEntryID else { return }
+        guard let target = queue.index(ofEntry: id), let current = queue.currentIndex, target >= current else {
+            stopAfterEntryID = nil
+            return
+        }
     }
 
     func toggleStopAfterCurrent() {
@@ -328,6 +351,7 @@ final class PlaybackEngine {
     // MARK: Interno: carga y programación
 
     private func startCurrent(autoplay: Bool, at position: TimeInterval = 0) {
+        pruneStopTarget()
         guard let track = queue.current else {
             stop()
             return
@@ -495,6 +519,7 @@ final class PlaybackEngine {
     /// Tras editar la cola o cambiar la repetición: si la pista ya programada dejó de ser la siguiente,
     /// se reprograma la actual desde donde va (descarta la programada).
     private func queueDidChange() {
+        pruneStopTarget()
         if let scheduled = prescheduled {
             let plannedID = queue.indexAfterCurrent(repeatMode: repeatMode, automatic: true).map { queue.items[$0].id }
             if plannedID != scheduled.entryID {

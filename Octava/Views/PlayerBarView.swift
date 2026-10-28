@@ -264,7 +264,7 @@ struct SeekBar: View {
 }
 
 /// Botón Stop. Clic: detiene y vuelve al principio de la canción (la cola se mantiene).
-/// Clic derecho: "Detener al terminar esta canción". Mientras esa opción está activa, el botón se ve terracota
+/// "Detener al terminar" se marca solo desde la cola (clic derecho en una canción). Mientras esa opción está activa, el botón se ve terracota
 /// con un punto. Recibe el reproductor explícitamente (el menú contextual no hereda bien el entorno).
 private struct StopButton: View {
     let player: PlaybackEngine
@@ -285,14 +285,8 @@ private struct StopButton: View {
         }
         .buttonStyle(IconButtonStyle(tint: stopsAfter ? Theme.accent : Theme.ink))
         .disabled(player.currentTrack == nil)
-        .help(stopsAfter ? "Se detendrá al terminar esta canción (clic derecho para cancelar)"
-                         : "Detener (clic derecho: detener al terminar esta canción)")
+        .help(stopsAfter ? "Detener (la reproducción ya se detendrá al terminar esta canción)" : "Detener")
         .accessibilityLabel("Detener")
         .accessibilityValue(stopsAfter ? "Se detendrá al terminar esta canción" : "")
-        .contextMenu {
-            Button("Detener ahora") { player.stopPlayback() }
-            Toggle("Detener al terminar esta canción",
-                   isOn: Binding(get: { player.stopsAfterCurrent }, set: { player.setStopAfterCurrent($0) }))
-        }
     }
 }

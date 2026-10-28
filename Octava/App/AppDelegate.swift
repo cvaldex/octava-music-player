@@ -30,11 +30,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(ClosureMenuItem("Siguiente", enabled: hasTrack) { player.next() })
         menu.addItem(ClosureMenuItem("Anterior", enabled: hasTrack) { player.previous() })
         menu.addItem(ClosureMenuItem("Detener", enabled: hasTrack) { player.stopPlayback() })
-        let stopAfter = ClosureMenuItem("Detener al terminar esta canción", enabled: hasTrack) {
-            player.toggleStopAfterCurrent()
-        }
-        stopAfter.state = player.stopsAfterCurrent ? .on : .off
-        menu.addItem(stopAfter)
         if let track = player.currentTrack {
             menu.addItem(.separator())
             let isFavorite = model.library.isFavorite(track)

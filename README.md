@@ -15,7 +15,7 @@ Novedades de cada versión en [CHANGELOG.md](CHANGELOG.md).
   borras archivos. Vistas de discos, artistas, canciones y favoritos, con búsqueda.
 - **Reproducción sin cortes** (gapless), normalización de volumen, repetir, Centro de Control y teclas multimedia.
 - **Cola "A continuación"**: arrastra canciones o discos a cualquier posición, reordénala con el asa, quita o
-  reproduce desde el menú contextual. Opción "Detener al terminar esta canción".
+  reproduce desde el menú contextual. Clic derecho en cualquier canción: "Detener al terminar esta canción".
 - **Mezclas**: aleatoria de toda la colección o con filtros (décadas, géneros, artistas); se rellenan solas y evitan
   repetir artista o disco seguidos.
 - **Listas** propias y fijas que se actualizan solas ("Más escuchadas", "Hace tiempo sin oír", "Canciones cortas"),
@@ -34,7 +34,7 @@ Novedades de cada versión en [CHANGELOG.md](CHANGELOG.md).
 | Adelantar / retroceder 10 s | ⌥⌘→ / ⌥⌘← |
 | Subir / bajar volumen | ⌥⌘↑ / ⌥⌘↓ |
 | Silenciar | ⌥⌘M |
-| Detener / detener al terminar la canción | ⌘. / ⌥⌘. |
+| Detener | ⌘. |
 | Ir a la canción actual | ⌘L |
 | Mezcla aleatoria de toda la colección | ⇧⌘S |
 | Nueva mezcla con filtros | ⇧⌘M |

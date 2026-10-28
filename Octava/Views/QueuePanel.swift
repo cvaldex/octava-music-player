@@ -79,7 +79,9 @@ struct QueuePanel: View {
                             .tracking(0.6)
                             .foregroundStyle(Theme.tertiaryText)
                         Spacer()
-                        StopAfterChip(player: player)
+                        if player.stopsAfterCurrent {
+                            StopMark(text: "Se detiene al terminar")
+                        }
                     }
                     HStack(spacing: 10) {
                         PlayingBars(animating: player.isPlaying)
@@ -97,6 +99,13 @@ struct QueuePanel: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 14)
+                .contentShape(Rectangle())
+                .contextMenu {
+                    Button(player.stopsAfterCurrent ? "No detener al terminar esta canción"
+                                                    : "Detener al terminar esta canción") {
+                        player.toggleStopAfterCurrent()
+                    }
+                }
             }
 
             if upcoming.isEmpty {
@@ -124,7 +133,7 @@ struct QueuePanel: View {
                 // sobre la fila lo impedía), y el doble clic se maneja como acción principal.
                 List(selection: $selection) {
                     ForEach(upcoming) { entry in
-                        QueueRow(track: entry.track)
+                        QueueRow(track: entry.track, stopsAfter: entry.id == player.stopAfterEntryID)
                             .tag(entry.id)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
@@ -192,6 +201,10 @@ struct QueuePanel: View {
             let player = model.player
             if entries.count == 1 {
                 Button("Reproducir ahora") { player.jump(to: first.id) }
+                Button(player.stopAfterEntryID == first.id ? "No detener al terminar esta canción"
+                                                          : "Detener al terminar esta canción") {
+                    player.toggleStopAfter(entryID: first.id)
+                }
             }
             Button(entries.count == 1 ? "Quitar de la cola" : "Quitar \(entries.count) canciones de la cola") {
                 for entry in entries { player.removeEntry(entry.id) }
@@ -210,6 +223,7 @@ struct QueuePanel: View {
 
 private struct QueueRow: View {
     let track: Track
+    var stopsAfter = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -229,6 +243,13 @@ private struct QueueRow: View {
                     .help("\(track.performer) · \(track.album)")
             }
             Spacer(minLength: 8)
+            if stopsAfter {
+                Image(systemName: "stop.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.accent)
+                    .help("La reproducción se detiene al terminar esta canción")
+                    .accessibilityLabel("Se detiene al terminar esta canción")
+            }
             Text(formatDuration(track.duration))
                 .font(Theme.mono(11))
                 .foregroundStyle(Theme.tertiaryText)
@@ -237,29 +258,20 @@ private struct QueueRow: View {
     }
 }
 
-/// "Detener al terminar": interruptor junto a la canción que suena.
-private struct StopAfterChip: View {
-    let player: PlaybackEngine
+/// Marca informativa junto a "Sonando" cuando la reproducción se detendrá al terminar la canción actual.
+/// (El interruptor que había aquí se quitó: la marca se pone con clic derecho en la cola.)
+private struct StopMark: View {
+    let text: String
 
     var body: some View {
-        let isOn = player.stopsAfterCurrent
-        Button {
-            player.toggleStopAfterCurrent()
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "stop.circle\(isOn ? ".fill" : "")")
-                Text(isOn ? "Se detiene al terminar" : "Detener al terminar")
-            }
-            .font(.system(size: 11, weight: isOn ? .semibold : .regular))
-            .foregroundStyle(isOn ? Theme.accentText : Theme.secondaryText)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(isOn ? Theme.accentTint : Color.clear, in: Capsule())
-            .overlay(Capsule().stroke(isOn ? Color.clear : Theme.controlBorder))
-            .contentShape(Capsule())
+        HStack(spacing: 4) {
+            Image(systemName: "stop.circle.fill")
+            Text(text)
         }
-        .buttonStyle(.plain)
-        .help("Detener la reproducción cuando termine esta canción")
-        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(Theme.accentText)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Theme.accentTint, in: Capsule())
     }
 }
