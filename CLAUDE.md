@@ -204,3 +204,4 @@ Actualiza esta lista al cerrar cada fase.
 - "Detener al terminar" vale para cualquier entrada de la cola (`stopAfterEntryID`, una sola marca): se pone con clic derecho en la cola (o en "Sonando"), se ve con un ícono en la fila y `pruneStopTarget` la anula si la entrada sale de la cola o queda atrás. A pedido del usuario se quitó de todos los demás lugares (menú Reproducción, ⌥⌘., Dock, botón Stop).
 - `LibraryStore.reload()` sube `revision`: la página del disco se refresca tras releer (p. ej. al guardar tags) y sigue a sus canciones si cambian de disco.
 - Editor de tags: línea de ubicación (ruta relativa, completa al pasar el cursor) y "Mostrar en Finder".
+- `AlbumDetailView` lleva `.id(album.id)` en el destino de navegación: sin eso, al reemplazar un disco abierto por otro (ir al disco que suena) SwiftUI reutilizaba la página con el estado (`@State tracks`, `currentAlbumID`) del anterior.

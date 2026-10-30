@@ -4,6 +4,8 @@ import SwiftUI
 struct PlayerBarView: View {
     @Environment(AppModel.self) private var model
     @AppStorage("showQueue") private var showQueue = true
+    /// El puntero está sobre el título o el artista de la canción (se subrayan: son clicables).
+    @State private var isHoveringInfo = false
 
     var body: some View {
         let player = model.player
@@ -50,14 +52,21 @@ struct PlayerBarView: View {
                 Text(track?.title ?? "Nada sonando")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(track == nil ? Theme.secondaryText : Theme.ink)
+                    .underline(isHoveringInfo && track != nil)
                     .lineLimit(1)
                 if let track {
                     Text("\(track.performer) — \(track.album)")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.secondaryText)
+                        .underline(isHoveringInfo)
                         .lineLimit(1)
                 }
             }
+            // Igual que la carátula: abre el disco que suena (⌘L).
+            .contentShape(Rectangle())
+            .onHover { isHoveringInfo = $0 }
+            .onTapGesture { if track != nil { model.revealCurrentTrack() } }
+            .help(track == nil ? "" : "Ir al disco (⌘L)")
 
             if let track {
                 let isFavorite = model.library.isFavorite(track)

@@ -70,6 +70,8 @@ struct RootView: View {
         }
         .onChange(of: model.revealCurrentRequest) {
             guard let album = model.library.album(id: model.player.currentTrack?.albumId) else { return }
+            // Si ese disco ya está abierto (y no hay búsqueda encima), no se apila otra copia.
+            if !isSearching, case .album(let shown)? = navigator.path.last, shown.id == album.id { return }
             // El disco se abre en la sección actual (todas comparten la pila de navegación). Antes se cambiaba a
             // Álbumes y se abría el disco en el mismo paso, pero el cambio de página raíz descartaba la navegación
             // y quedaba la grilla (había que hacer clic dos veces).
@@ -129,7 +131,11 @@ struct RootView: View {
                     .navigationDestination(for: LibraryRoute.self) { route in
                         switch route {
                         case .album(let album):
+                            // .id: cada disco tiene su propia página. Sin esto, al reemplazar un disco abierto por
+                            // otro (clic en la carátula de la barra) SwiftUI reutilizaba la página con el estado del
+                            // disco anterior y seguía mostrándolo.
                             AlbumDetailView(album: album)
+                                .id(album.id)
                         case .artist(let name):
                             ArtistDetailView(name: name)
                         case .genre(let name):
