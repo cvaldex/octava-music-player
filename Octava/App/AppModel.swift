@@ -440,6 +440,51 @@ final class AppModel {
         return createPlaylist(named: name, tracks: tracks)
     }
 
+    /// Canciones arrastradas a una lista de la barra lateral: se agregan al final, sin repetir las que ya estaban.
+    func addToPlaylistFromDrop(_ playlistID: Int64, trackIDs: [Int64]) {
+        guard let playlist = playlists.playlist(id: playlistID), !trackIDs.isEmpty else { return }
+        var present = Set(playlists.trackIDs(for: playlistID))
+        var added: [Int64] = []
+        var skipped = 0
+        for id in trackIDs {
+            if present.insert(id).inserted { added.append(id) } else { skipped += 1 }
+        }
+        playlists.append(trackIDs: added, to: playlistID)
+        let name = "“\(playlist.name)”"
+        let text: String
+        if added.isEmpty {
+            text = skipped == 1 ? "Esa canción ya estaba en \(name)." : "Las \(skipped) canciones ya estaban en \(name)."
+        } else {
+            text = "Se \(added.count == 1 ? "agregó 1 canción" : "agregaron \(added.count) canciones") a \(name)"
+                + (skipped > 0 ? " (\(skipped) ya \(skipped == 1 ? "estaba" : "estaban"))." : ".")
+        }
+        player.showNotice(text, playlistID: playlistID)
+    }
+
+    /// Canciones soltadas sobre "Nueva lista": pide el nombre y crea la lista con ellas. Devuelve su id.
+    @discardableResult
+    func createPlaylistFromDrop(trackIDs: [Int64]) -> Int64? {
+        var seen = Set<Int64>()
+        let tracks = library.tracks(ids: trackIDs.filter { seen.insert($0).inserted })
+        guard !tracks.isEmpty else { return nil }
+        let albums = Set(tracks.map(\.album))
+        let suggested = albums.count == 1 ? (albums.first ?? "Nueva lista") : "Nueva lista"
+        guard let id = createPlaylistPrompting(with: tracks, suggestedName: suggested) else { return nil }
+        player.showNotice("Se creó la lista con \(countLabel(tracks.count, singular: "canción", plural: "canciones")).",
+                          playlistID: id)
+        return id
+    }
+
+    /// "Copiar tabla" de la página de un disco: Artista, Álbum y Título separados por tabulaciones,
+    /// listo para pegar en Excel o Google Sheets.
+    func copyTable(_ tracks: [Track]) {
+        guard !tracks.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(TableExport.tsv(tracks), forType: .string)
+        player.showNotice("Se copiaron \(countLabel(tracks.count, singular: "canción", plural: "canciones")) al portapapeles (Artista, Álbum y Título). Ya puedes pegarlas en Excel.")
+    }
+
     func addToPlaylist(_ id: Int64, tracks: [Track]) {
         playlists.append(trackIDs: tracks.compactMap(\.id), to: id)
     }
@@ -789,4 +834,29 @@ final class AppModel {
 struct TagEditTarget: Identifiable {
     let id = UUID()
     let tracks: [Track]
+}
+
+
+/// Tabla de canciones como texto separado por tabulaciones (lo que Excel y Google Sheets pegan en columnas).
+enum TableExport {
+    static let header = ["Artista", "Álbum", "Título"]
+
+    /// Artista: "Artista del álbum" (TPE2) y, si está vacío, "Artista" (TPE1).
+    static func row(_ track: Track) -> [String] {
+        let albumArtist = track.albumArtist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return [albumArtist.isEmpty ? track.artist : albumArtist, track.album, track.title]
+    }
+
+    static func tsv(_ tracks: [Track]) -> String {
+        ([header] + tracks.map(row))
+            .map { $0.map(clean).joined(separator: "\t") }
+            .joined(separator: "\n") + "\n"
+    }
+
+    /// Una tabulación o un salto de línea dentro de un campo desordenaría las columnas.
+    private static func clean(_ text: String) -> String {
+        text.replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+    }
 }

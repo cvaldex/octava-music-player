@@ -161,6 +161,15 @@ struct AlbumDetailView: View {
             .buttonStyle(OutlineButtonStyle())
             .disabled(model.isSavingTags)
             .help("Editar los tags de todo el disco")
+
+            Button {
+                model.copyTable(tracks)
+            } label: {
+                secondaryLabel("Copiar tabla", systemImage: "tablecells", compact: compact)
+            }
+            .buttonStyle(OutlineButtonStyle())
+            .disabled(tracks.isEmpty)
+            .help("Copia Artista, Álbum y Título de las canciones para pegarlas en Excel")
         }
         .fixedSize()
     }

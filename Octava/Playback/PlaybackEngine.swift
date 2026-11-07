@@ -207,6 +207,11 @@ final class PlaybackEngine {
         engine.mainMixerNode.outputVolume = isMuted ? 0 : volume
     }
 
+    /// Aviso informativo breve abajo de la ventana (por ejemplo, "Se agregaron 12 canciones a…").
+    func showNotice(_ text: String, playlistID: Int64? = nil) {
+        notice = PlaybackNotice(text: text, isInfo: true, playlistID: playlistID)
+    }
+
     func dismissNotice(_ id: UUID) {
         if notice?.id == id { notice = nil }
     }
@@ -665,4 +670,8 @@ func scrobbleThreshold(forDuration duration: TimeInterval) -> TimeInterval? {
 struct PlaybackNotice: Identifiable, Equatable {
     let id = UUID()
     let text: String
+    /// Aviso informativo (algo salió bien) en vez de advertencia.
+    var isInfo = false
+    /// Lista a la que lleva el botón "Ver lista" del aviso.
+    var playlistID: Int64? = nil
 }

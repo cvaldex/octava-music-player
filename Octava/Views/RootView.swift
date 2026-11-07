@@ -40,7 +40,14 @@ struct RootView: View {
             .animation(.easeInOut(duration: 0.2), value: showQueue)
             .overlay(alignment: .bottom) {
                 if let notice = model.player.notice {
-                    NoticeToast(text: notice.text) { model.player.dismissNotice(notice.id) }
+                    NoticeToast(text: notice.text, isInfo: notice.isInfo,
+                                onOpenPlaylist: notice.playlistID.map { id in
+                                    {
+                                        model.player.dismissNotice(notice.id)
+                                        query = ""
+                                        selection = .playlist(id)
+                                    }
+                                }) { model.player.dismissNotice(notice.id) }
                         .padding(.bottom, 14)
                         .task(id: notice.id) {
                             try? await Task.sleep(for: .seconds(7))
@@ -221,16 +228,24 @@ private struct LibraryBanners: View {
 /// Aviso breve flotante (por ejemplo, una canción que no se pudo abrir).
 private struct NoticeToast: View {
     let text: String
+    var isInfo = false
+    var onOpenPlaylist: (() -> Void)? = nil
     let onClose: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Theme.accent)
+            Image(systemName: isInfo ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(isInfo ? Theme.ok : Theme.accent)
             Text(text)
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
+            if let onOpenPlaylist {
+                Button("Ver lista", action: onOpenPlaylist)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.accentText)
+            }
             Button {
                 onClose()
             } label: {

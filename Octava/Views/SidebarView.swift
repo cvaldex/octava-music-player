@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum SidebarItem: Hashable, Identifiable {
     case albums, artists, songs, genres, favorites
@@ -94,6 +95,7 @@ struct SidebarView: View {
                     if let id = playlist.id {
                         Label(playlist.name, systemImage: "music.note.list")
                             .lineLimit(1)
+                            .trackDropTarget { ids in model.addToPlaylistFromDrop(id, trackIDs: ids) }
                             .tag(SidebarItem.playlist(id))
                             .contextMenu {
                                 Button("Reproducir") { model.play(tracks: model.tracks(inPlaylist: id)) }
@@ -117,6 +119,10 @@ struct SidebarView: View {
                         .foregroundStyle(Theme.secondaryText)
                 }
                 .buttonStyle(.plain)
+                .trackDropTarget { ids in
+                    if let id = model.createPlaylistFromDrop(trackIDs: ids) { selection = .playlist(id) }
+                }
+                .help("Nueva lista (también puedes soltar canciones o discos aquí)")
             }
         }
         .listStyle(.sidebar)
@@ -191,5 +197,42 @@ struct SidebarView: View {
 private extension URL {
     var abbreviatingWithTildeInPath: String {
         (path as NSString).abbreviatingWithTildeInPath
+    }
+}
+
+
+// MARK: - Soltar canciones en una lista
+
+/// Fila de la barra lateral que acepta canciones o discos arrastrados desde Octava (ver `TrackDrag`):
+/// se ilumina mientras el puntero está encima y, al soltar, entrega los ids de las canciones.
+private struct TrackDropTarget: ViewModifier {
+    let perform: @MainActor ([Int64]) -> Void
+    @State private var isTargeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background {
+                if isTargeted {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Theme.accentTint)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.accent, lineWidth: 1.5))
+                        .padding(-4)
+                }
+            }
+            .onDrop(of: [.plainText], isTargeted: $isTargeted) { providers in
+                Task { @MainActor in
+                    let ids = await TrackDrag.loadIDs(from: providers)
+                    if !ids.isEmpty { perform(ids) }
+                }
+                return true
+            }
+    }
+}
+
+extension View {
+    func trackDropTarget(perform: @escaping @MainActor ([Int64]) -> Void) -> some View {
+        modifier(TrackDropTarget(perform: perform))
     }
 }
