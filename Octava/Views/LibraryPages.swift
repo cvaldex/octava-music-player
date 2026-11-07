@@ -5,19 +5,31 @@ import SwiftUI
 /// Todas las canciones en una tabla ordenable.
 struct SongsView: View {
     @Environment(AppModel.self) private var model
+    @State private var filter = ""
 
     var body: some View {
-        let tracks = model.library.tracks
+        let all = model.library.tracks
+        let tracks = ListFilter.apply(all, query: filter)
+        let isFiltering = tracks.count != all.count
         VStack(alignment: .leading, spacing: 16) {
-            PageHeader(title: "Canciones", subtitle: countLabel(tracks.count, singular: "canción", plural: "canciones")) {
-                ShuffleButton { model.startMix(MixRule()) }
-                    .disabled(tracks.isEmpty)
-                    .help("Mezcla de toda la colección que se rellena sola")
+            PageHeader(title: "Canciones", subtitle: ListFilter.countLabel(shown: tracks.count, total: all.count)) {
+                ShuffleButton {
+                    if isFiltering { model.playShuffled(tracks: tracks) } else { model.startMix(MixRule()) }
+                }
+                .disabled(tracks.isEmpty)
+                .help(isFiltering ? "Mezclar las canciones filtradas" : "Mezcla de toda la colección que se rellena sola")
             }
             .padding(.horizontal, 32)
             .padding(.top, 28)
 
-            TrackTable(tracks: tracks)
+            FilterField(text: $filter)
+                .padding(.horizontal, 32)
+
+            if tracks.isEmpty && !filter.isEmpty {
+                NoFilterMatches(query: filter)
+            } else {
+                TrackTable(tracks: tracks, highlight: filter)
+            }
         }
         .background(Theme.surface)
     }
@@ -27,24 +39,36 @@ struct SongsView: View {
 
 struct FavoritesView: View {
     @Environment(AppModel.self) private var model
+    @State private var filter = ""
 
     var body: some View {
-        let tracks = model.library.favoriteTracks
+        let all = model.library.favoriteTracks
+        let tracks = ListFilter.apply(all, query: filter)
+        let isFiltering = tracks.count != all.count
         VStack(alignment: .leading, spacing: 16) {
-            PageHeader(title: "Favoritos", subtitle: countLabel(tracks.count, singular: "canción", plural: "canciones")) {
-                ShuffleButton { model.startMix(MixRule(source: .favorites)) }
-                    .disabled(tracks.isEmpty)
+            PageHeader(title: "Favoritos", subtitle: ListFilter.countLabel(shown: tracks.count, total: all.count)) {
+                ShuffleButton {
+                    if isFiltering { model.playShuffled(tracks: tracks) } else { model.startMix(MixRule(source: .favorites)) }
+                }
+                .disabled(tracks.isEmpty)
             }
             .padding(.horizontal, 32)
             .padding(.top, 28)
 
-            if tracks.isEmpty {
+            if !all.isEmpty {
+                FilterField(text: $filter)
+                    .padding(.horizontal, 32)
+            }
+
+            if tracks.isEmpty && !filter.isEmpty {
+                NoFilterMatches(query: filter)
+            } else if tracks.isEmpty {
                 ContentUnavailableView("Aún no tienes favoritos",
                                        systemImage: "heart",
                                        description: Text("Marca el corazón de una canción para encontrarla aquí."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                TrackTable(tracks: tracks)
+                TrackTable(tracks: tracks, highlight: filter)
             }
         }
         .background(Theme.surface)

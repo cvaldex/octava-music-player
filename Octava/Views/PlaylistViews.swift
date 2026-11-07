@@ -39,34 +39,39 @@ struct PlaylistView: View {
     let onDeleted: () -> Void
 
     @State private var selection = Set<Int>()
+    @State private var filter = ""
 
     var body: some View {
         // `revision` hace que la vista se vuelva a dibujar cuando cambia el contenido de cualquier lista.
         let _ = model.playlists.revision
         let playlist = model.playlists.playlist(id: id)
         let tracks = model.tracks(inPlaylist: id)
+        // Con filtro: solo las que calzan, cada una con su posición en la lista completa.
+        let shown = Array(tracks.enumerated()).filter { ListFilter.matches($0.element, query: filter) }
+        let shownTracks = shown.map(\.element)
+        let isFiltering = shown.count != tracks.count
         let currentID = model.player.currentTrack?.id
-        let duration = tracks.reduce(0) { $0 + $1.duration }
+        let duration = shownTracks.reduce(0) { $0 + $1.duration }
 
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: playlist?.name ?? "Lista",
-                       subtitle: tracks.isEmpty ? "Vacía" : "\(countLabel(tracks.count, singular: "canción", plural: "canciones")) · \(formatLongDuration(duration))") {
+                       subtitle: tracks.isEmpty ? "Vacía" : "\(ListFilter.countLabel(shown: shown.count, total: tracks.count)) · \(formatLongDuration(duration))") {
                 Button {
-                    model.play(tracks: tracks)
+                    model.play(tracks: shownTracks)
                 } label: {
                     Label("Reproducir", systemImage: "play.fill")
                         .font(.system(size: 13, weight: .semibold))
                 }
                 .buttonStyle(AccentButtonStyle())
-                .disabled(tracks.isEmpty)
+                .disabled(shownTracks.isEmpty)
 
                 Button {
-                    model.playShuffled(tracks: tracks)
+                    model.playShuffled(tracks: shownTracks)
                 } label: {
                     Label("Mezclar", systemImage: "shuffle").font(.system(size: 13))
                 }
                 .buttonStyle(OutlineButtonStyle())
-                .disabled(tracks.isEmpty)
+                .disabled(shownTracks.isEmpty)
 
                 if let playlist {
                     Menu {
@@ -91,25 +96,35 @@ struct PlaylistView: View {
             .padding(.horizontal, 32)
             .padding(.top, 28)
 
+            if !tracks.isEmpty {
+                FilterField(text: $filter).padding(.horizontal, 32)
+            }
+
             if tracks.isEmpty {
                 ContentUnavailableView("Lista vacía",
                                        systemImage: "music.note.list",
                                        description: Text("Agrega canciones con clic derecho → Agregar a lista, desde cualquier tabla, disco o la cola."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if shown.isEmpty {
+                NoFilterMatches(query: filter)
             } else {
                 List(selection: $selection) {
-                    ForEach(Array(tracks.enumerated()), id: \.offset) { index, track in
+                    // La etiqueta (tag) es siempre la posición en la lista completa: el menú, quitar y la
+                    // selección funcionan igual con o sin filtro.
+                    ForEach(shown, id: \.offset) { index, track in
                         PlaylistRow(number: index + 1, track: track,
                                     isCurrent: track.id != nil && track.id == currentID,
-                                    library: model.library)
+                                    library: model.library,
+                                    highlight: filter)
                             .tag(index)
                     }
-                    .onMove { source, destination in
+                    // Con filtro no se reordena: no se ven todas las posiciones.
+                    .onMove(perform: isFiltering ? nil : { source, destination in
                         model.playlists.moveItems(fromOffsets: source, toOffset: destination, in: id)
                         selection.removeAll()
-                    }
+                    })
                     .onDelete { offsets in
-                        model.playlists.removeItems(atOffsets: offsets, from: id)
+                        model.playlists.removeItems(atOffsets: IndexSet(offsets.map { shown[$0].offset }), from: id)
                         selection.removeAll()
                     }
                 }
@@ -119,7 +134,13 @@ struct PlaylistView: View {
                 .contextMenu(forSelectionType: Int.self) { indices in
                     rowMenu(indices: indices, tracks: tracks)
                 } primaryAction: { indices in
-                    if let first = indices.min() { model.play(tracks: tracks, startingAt: first) }
+                    guard let first = indices.min() else { return }
+                    if isFiltering {
+                        // Doble clic con filtro: suenan las filtradas, desde la elegida.
+                        model.play(tracks: shownTracks, startingAt: shown.firstIndex { $0.offset == first } ?? 0)
+                    } else {
+                        model.play(tracks: tracks, startingAt: first)
+                    }
                 }
                 .onDeleteCommand {
                     guard !selection.isEmpty else { return }
@@ -163,6 +184,7 @@ private struct PlaylistRow: View {
     let track: Track
     let isCurrent: Bool
     let library: LibraryStore
+    var highlight = ""
 
     var body: some View {
         HStack(spacing: 12) {
@@ -180,11 +202,11 @@ private struct PlaylistRow: View {
             .frame(width: 30, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(track.title)
+                Text(ListFilter.highlighted(track.title, query: highlight))
                     .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
                     .foregroundStyle(isCurrent ? Theme.accentText : Theme.ink)
                     .lineLimit(1)
-                Text("\(track.performer) · \(track.album)")
+                Text(ListFilter.highlighted("\(track.performer) · \(track.album)", query: highlight))
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
@@ -215,11 +237,15 @@ func formatLongDuration(_ seconds: TimeInterval) -> String {
 /// "Más escuchadas": las 100 canciones con más reproducciones.
 struct MostPlayedView: View {
     @Environment(AppModel.self) private var model
+    @State private var filter = ""
 
     var body: some View {
-        let tracks = model.mostPlayedTracks
+        let all = model.mostPlayedTracks
+        let tracks = ListFilter.apply(all, query: filter)
         VStack(alignment: .leading, spacing: 16) {
-            PageHeader(title: "Más escuchadas", subtitle: "Las \(tracks.count) canciones que más has escuchado") {
+            PageHeader(title: "Más escuchadas",
+                       subtitle: tracks.count == all.count ? "Las \(all.count) canciones que más has escuchado"
+                                                           : ListFilter.countLabel(shown: tracks.count, total: all.count)) {
                 Button {
                     model.play(tracks: tracks)
                 } label: {
@@ -239,13 +265,19 @@ struct MostPlayedView: View {
             .padding(.horizontal, 32)
             .padding(.top, 28)
 
-            if tracks.isEmpty {
+            if !all.isEmpty {
+                FilterField(text: $filter).padding(.horizontal, 32)
+            }
+
+            if tracks.isEmpty && !filter.isEmpty {
+                NoFilterMatches(query: filter)
+            } else if tracks.isEmpty {
                 ContentUnavailableView("Aún no hay escuchas",
                                        systemImage: "chart.bar",
                                        description: Text("Una canción cuenta como escuchada al pasar la mitad (o 4 minutos)."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                TrackTable(tracks: tracks)
+                TrackTable(tracks: tracks, highlight: filter)
             }
         }
         .background(Theme.surface)
@@ -255,26 +287,37 @@ struct MostPlayedView: View {
 /// "Hace tiempo sin oír": no escuchadas en más de 6 meses, o nunca.
 struct ForgottenView: View {
     @Environment(AppModel.self) private var model
+    @State private var filter = ""
 
     var body: some View {
-        let tracks = model.forgottenTracks
+        let all = model.forgottenTracks
+        let tracks = ListFilter.apply(all, query: filter)
+        let isFiltering = tracks.count != all.count
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: "Hace tiempo sin oír",
-                       subtitle: "\(countLabel(tracks.count, singular: "canción", plural: "canciones")) sin escuchar en 6 meses o más") {
-                ShuffleButton { model.startMix(MixRule(source: .forgotten)) }
-                    .disabled(tracks.isEmpty)
-                    .help("Mezcla que se rellena sola con canciones olvidadas")
+                       subtitle: "\(ListFilter.countLabel(shown: tracks.count, total: all.count)) sin escuchar en 6 meses o más") {
+                ShuffleButton {
+                    if isFiltering { model.playShuffled(tracks: tracks) } else { model.startMix(MixRule(source: .forgotten)) }
+                }
+                .disabled(tracks.isEmpty)
+                .help(isFiltering ? "Mezclar las canciones filtradas" : "Mezcla que se rellena sola con canciones olvidadas")
             }
             .padding(.horizontal, 32)
             .padding(.top, 28)
 
-            if tracks.isEmpty {
+            if !all.isEmpty {
+                FilterField(text: $filter).padding(.horizontal, 32)
+            }
+
+            if tracks.isEmpty && !filter.isEmpty {
+                NoFilterMatches(query: filter)
+            } else if tracks.isEmpty {
                 ContentUnavailableView("Todo al día",
                                        systemImage: "clock.arrow.circlepath",
                                        description: Text("Has escuchado toda tu colección en los últimos 6 meses."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                TrackTable(tracks: tracks)
+                TrackTable(tracks: tracks, highlight: filter)
             }
         }
         .background(Theme.surface)
@@ -309,13 +352,15 @@ enum ShortSongs {
 
 struct ShortSongsView: View {
     @Environment(AppModel.self) private var model
+    @State private var filter = ""
 
     var body: some View {
-        let tracks = model.shortSongs
+        let all = model.shortSongs
+        let tracks = ListFilter.apply(all, query: filter)
         let duration = tracks.reduce(0) { $0 + $1.duration }
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(title: "Canciones cortas",
-                       subtitle: "\(countLabel(tracks.count, singular: "canción", plural: "canciones")) · \(formatLongDuration(duration)) · \(ShortSongs.ruleDescription)") {
+                       subtitle: "\(ListFilter.countLabel(shown: tracks.count, total: all.count)) · \(formatLongDuration(duration)) · \(ShortSongs.ruleDescription)") {
                 Button {
                     model.play(tracks: tracks)
                 } label: {
@@ -335,13 +380,19 @@ struct ShortSongsView: View {
             .padding(.horizontal, 32)
             .padding(.top, 28)
 
-            if tracks.isEmpty {
+            if !all.isEmpty {
+                FilterField(text: $filter).padding(.horizontal, 32)
+            }
+
+            if tracks.isEmpty && !filter.isEmpty {
+                NoFilterMatches(query: filter)
+            } else if tracks.isEmpty {
                 ContentUnavailableView("Sin canciones cortas",
                                        systemImage: "timer",
                                        description: Text("Aquí aparecen las \(ShortSongs.ruleDescription)."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                TrackTable(tracks: tracks)
+                TrackTable(tracks: tracks, highlight: filter)
             }
         }
         .background(Theme.surface)

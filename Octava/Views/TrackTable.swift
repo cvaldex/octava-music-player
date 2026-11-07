@@ -11,6 +11,8 @@ struct TrackTable: View {
     @Environment(AppModel.self) private var model
     @Environment(Navigator.self) private var navigator
     let tracks: [Track]
+    /// Texto del filtro de la página: se destaca en título, artista y álbum.
+    var highlight = ""
 
     @State private var sortOrder: [KeyPathComparator<Track>] = []
     @State private var selection = Set<Track.ID>()
@@ -28,6 +30,7 @@ struct TrackTable: View {
         let rows = self.rows
         let currentID = model.player.currentTrack?.id
         let library = model.library
+        let highlight = self.highlight
 
         Table(of: Track.self, selection: $selection, sortOrder: $sortOrder) {
             // Ícono fijo: una animación dentro de la tabla la obligaba a actualizarse completa muchas veces por
@@ -44,7 +47,7 @@ struct TrackTable: View {
 
             TableColumn("Título", value: \Track.title) { (track: Track) in
                 let isCurrent = track.id != nil && track.id == currentID
-                Text(track.title)
+                Text(ListFilter.highlighted(track.title, query: highlight))
                     .fontWeight(isCurrent ? .semibold : .regular)
                     .foregroundStyle(isCurrent ? Theme.accentText : Theme.ink)
                     .lineLimit(1)
@@ -52,12 +55,12 @@ struct TrackTable: View {
             .width(min: 120, ideal: 170)
 
             TableColumn("Artista", value: \Track.performer) { (track: Track) in
-                Text(track.performer).foregroundStyle(Theme.navText).lineLimit(1)
+                Text(ListFilter.highlighted(track.performer, query: highlight)).foregroundStyle(Theme.navText).lineLimit(1)
             }
             .width(min: 70, ideal: 110)
 
             TableColumn("Álbum", value: \Track.album) { (track: Track) in
-                Text(track.album).foregroundStyle(Theme.navText).lineLimit(1)
+                Text(ListFilter.highlighted(track.album, query: highlight)).foregroundStyle(Theme.navText).lineLimit(1)
             }
             .width(min: 70, ideal: 130)
 
