@@ -70,7 +70,7 @@ struct OctavaApp: App {
                     .keyboardShortcut(".", modifiers: .command)
                     .disabled(model.player.currentTrack == nil)
                 Divider()
-                Button("Mezcla aleatoria de toda la colección") { model.playShuffledLibrary() }
+                Button("Mezcla aleatoria de toda la colección") { model.showShuffleMix() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
                 Button("Nueva mezcla con filtros…") { model.showsMixBuilder = true }
                     .keyboardShortcut("m", modifiers: [.command, .shift])

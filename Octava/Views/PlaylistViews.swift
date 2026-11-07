@@ -398,3 +398,61 @@ struct ShortSongsView: View {
         .background(Theme.surface)
     }
 }
+
+// MARK: - Mezcla aleatoria
+
+/// Página "Mezcla aleatoria": 100 canciones de toda la colección, sin repetir artista ni disco seguidos.
+/// No suena sola: Reproducir la pone en la cola (que luego se rellena sola), "Mezclar de nuevo" arma otra.
+struct ShuffleMixView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let tracks = model.shuffleMixTracks
+        let duration = tracks.reduce(0) { $0 + $1.duration }
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(title: "Mezcla aleatoria",
+                       subtitle: tracks.isEmpty ? "De toda tu colección"
+                                                : "\(countLabel(tracks.count, singular: "canción", plural: "canciones")) · \(formatLongDuration(duration)) · de toda tu colección") {
+                Button {
+                    model.playShuffleMix()
+                } label: {
+                    Label("Reproducir", systemImage: "play.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .buttonStyle(AccentButtonStyle())
+                .disabled(tracks.isEmpty)
+                .help("Reproducir esta mezcla; al acabarse, la cola se rellena sola")
+
+                Button {
+                    model.regenerateShuffleMix()
+                } label: {
+                    Label("Mezclar de nuevo", systemImage: "arrow.triangle.2.circlepath").font(.system(size: 13))
+                }
+                .buttonStyle(OutlineButtonStyle())
+                .disabled(model.library.trackCount == 0)
+                .help("Armar otra mezcla")
+
+                Button {
+                    model.addToQueue(tracks)
+                } label: {
+                    Label("Agregar a la cola", systemImage: "text.badge.plus").font(.system(size: 13))
+                }
+                .buttonStyle(OutlineButtonStyle())
+                .disabled(tracks.isEmpty)
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 28)
+
+            if tracks.isEmpty {
+                ContentUnavailableView("Sin canciones",
+                                       systemImage: "shuffle",
+                                       description: Text("Elige tu carpeta de música para armar una mezcla."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                TrackTable(tracks: tracks)
+            }
+        }
+        .background(Theme.surface)
+        .task(id: model.library.revision) { model.ensureShuffleMix() }
+    }
+}

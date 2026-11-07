@@ -43,6 +43,14 @@ final class AppModel {
     /// Muestra la ventana para crear una mezcla con filtros.
     var showsMixBuilder = false
 
+    /// Mezcla aleatoria de toda la colección que muestra su página: se arma una vez y se conserva (también al
+    /// cerrar Octava) hasta "Mezclar de nuevo". No suena hasta pulsar Reproducir.
+    private(set) var shuffleMixIDs: [Int64] = [] {
+        didSet { UserDefaults.standard.set(shuffleMixIDs.map { NSNumber(value: $0) }, forKey: SettingsKey.shuffleMix) }
+    }
+    /// Pedido de mostrar la página "Mezcla aleatoria" (⇧⌘S, botón aleatorio de la barra); la vista raíz lo observa.
+    private(set) var showShuffleMixRequest = 0
+
     /// Canciones abiertas en el editor de tags (la hoja se muestra mientras exista).
     var tagEditTarget: TagEditTarget?
     /// Se están escribiendo tags (o deshaciendo una edición).
@@ -71,6 +79,7 @@ final class AppModel {
         static let normalization = "normalization"
         static let volume = "volume"
         static let activeMix = "activeMix"
+        static let shuffleMix = "shuffleMixPreview"
     }
 
     /// La app corre como anfitrión de los tests: no debe tocar la biblioteca real.
@@ -102,6 +111,9 @@ final class AppModel {
         }
         if let data = defaults.data(forKey: SettingsKey.activeMix) {
             activeMix = try? JSONDecoder().decode(MixRule.self, from: data)
+        }
+        if let saved = defaults.array(forKey: SettingsKey.shuffleMix) as? [NSNumber] {
+            shuffleMixIDs = saved.map(\.int64Value)
         }
 
         player.onTrackFinished = { [weak self] track in
@@ -341,6 +353,37 @@ final class AppModel {
     /// Mezcla de toda la colección (se rellena sola).
     func playShuffledLibrary() {
         startMix(MixRule())
+    }
+
+    // MARK: Página "Mezcla aleatoria"
+
+    /// Canciones de la mezcla mostrada (las que sigan en la biblioteca).
+    var shuffleMixTracks: [Track] {
+        library.tracks(ids: shuffleMixIDs)
+    }
+
+    /// Arma la mezcla si todavía no hay una (primera vez, o si se borraron sus canciones).
+    func ensureShuffleMix() {
+        if shuffleMixTracks.isEmpty, library.trackCount > 0 { regenerateShuffleMix() }
+    }
+
+    /// "Mezclar de nuevo": otra mezcla de toda la colección, sin repetir artista ni disco seguidos.
+    func regenerateShuffleMix() {
+        shuffleMixIDs = MixBuilder.build(from: mixCandidates(for: MixRule()), count: MixBuilder.targetLength)
+            .compactMap(\.id)
+    }
+
+    /// Reproduce la mezcla mostrada y deja la cola rellenándose sola al acabarse (como la mezcla de siempre).
+    func playShuffleMix() {
+        let tracks = shuffleMixTracks
+        guard !tracks.isEmpty else { return }
+        activeMix = MixRule()
+        player.play(tracks: tracks, source: .mix)
+    }
+
+    /// ⇧⌘S y el botón aleatorio de la barra: muestran la página, sin reproducir.
+    func showShuffleMix() {
+        showShuffleMixRequest += 1
     }
 
     func playNext(_ tracks: [Track]) {

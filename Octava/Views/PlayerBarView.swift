@@ -85,11 +85,11 @@ struct PlayerBarView: View {
     private var controls: some View {
         let player = model.player
         return HStack(spacing: 14) {
-            Button { model.playShuffledLibrary() } label: {
+            Button { model.showShuffleMix() } label: {
                 Image(systemName: "shuffle").font(.system(size: 14, weight: .medium))
             }
             .buttonStyle(IconButtonStyle())
-            .help("Mezcla aleatoria de toda la colección")
+            .help("Ver la mezcla aleatoria de toda la colección (⇧⌘S)")
             .accessibilityLabel("Mezcla aleatoria")
 
             Button { player.previous() } label: {

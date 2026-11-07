@@ -70,6 +70,11 @@ struct RootView: View {
             navigator.reset()
             query = ""
         }
+        .onChange(of: model.showShuffleMixRequest) {
+            query = ""
+            navigator.reset()
+            selection = .shuffleMix
+        }
         .onChange(of: model.showPlaylistRequest) { _, id in
             guard let id else { return }
             query = ""
@@ -169,6 +174,8 @@ struct RootView: View {
                 GenresView()
             case .favorites:
                 FavoritesView()
+            case .shuffleMix:
+                ShuffleMixView()
             case .mostPlayed:
                 MostPlayedView()
             case .shortSongs:

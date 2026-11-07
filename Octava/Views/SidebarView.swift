@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 enum SidebarItem: Hashable, Identifiable {
     case albums, artists, songs, genres, favorites
-    case mostPlayed, forgotten, shortSongs
+    case mostPlayed, forgotten, shortSongs, shuffleMix
     /// Lista guardada (id en la base de datos).
     case playlist(Int64)
 
@@ -24,6 +24,7 @@ enum SidebarItem: Hashable, Identifiable {
         case .mostPlayed: "Más escuchadas"
         case .forgotten: "Hace tiempo sin oír"
         case .shortSongs: "Canciones cortas"
+        case .shuffleMix: "Mezcla aleatoria"
         case .playlist: "Lista"
         }
     }
@@ -38,6 +39,7 @@ enum SidebarItem: Hashable, Identifiable {
         case .mostPlayed: "chart.bar"
         case .forgotten: "clock.arrow.circlepath"
         case .shortSongs: "timer"
+        case .shuffleMix: "shuffle"
         case .playlist: "music.note.list"
         }
     }
@@ -70,19 +72,14 @@ struct SidebarView: View {
                     .tag(item)
                     .help("Lista que se actualiza sola")
                 }
-                Button {
-                    model.playShuffledLibrary()
-                } label: {
-                    Label {
-                        Text("Mezcla aleatoria")
-                    } icon: {
-                        Image(systemName: "shuffle").foregroundStyle(Theme.accent)
-                    }
-                    .contentShape(Rectangle())
+                // Página con la mezcla armada; no suena hasta pulsar Reproducir (a pedido del usuario).
+                Label {
+                    Text(SidebarItem.shuffleMix.title)
+                } icon: {
+                    Image(systemName: SidebarItem.shuffleMix.systemImage).foregroundStyle(Theme.accent)
                 }
-                .buttonStyle(.plain)
-                .disabled(model.library.trackCount == 0)
-                .help("Mezcla aleatoria de toda la colección (⇧⌘S): se rellena sola")
+                .tag(SidebarItem.shuffleMix)
+                .help("Mezcla aleatoria de toda la colección (⇧⌘S)")
                 // Cuarta lista fija (después de la mezcla aleatoria, a pedido del usuario).
                 Label {
                     Text(SidebarItem.shortSongs.title)
