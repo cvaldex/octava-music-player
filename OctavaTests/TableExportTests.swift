@@ -13,6 +13,6 @@ final class TableExportTests: XCTestCase {
             track(title: "Uno\tDos", artist: "Soda Stereo", albumArtist: "  ", album: "Signos"),
         ]
         XCTAssertEqual(TableExport.tsv(tracks),
-                       "Artista\tÁlbum\tTítulo\nABBA\tABBA Gold\tDancing Queen\nSoda Stereo\tSignos\tUno Dos\n")
+                       "ABBA\tABBA Gold\tDancing Queen\nSoda Stereo\tSignos\tUno Dos\n")
     }
 }

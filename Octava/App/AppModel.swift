@@ -838,8 +838,8 @@ struct TagEditTarget: Identifiable {
 
 
 /// Tabla de canciones como texto separado por tabulaciones (lo que Excel y Google Sheets pegan en columnas).
+/// Columnas: Artista, Álbum y Título, sin fila de títulos (a pedido del usuario).
 enum TableExport {
-    static let header = ["Artista", "Álbum", "Título"]
 
     /// Artista: "Artista del álbum" (TPE2) y, si está vacío, "Artista" (TPE1).
     static func row(_ track: Track) -> [String] {
@@ -848,7 +848,7 @@ enum TableExport {
     }
 
     static func tsv(_ tracks: [Track]) -> String {
-        ([header] + tracks.map(row))
+        tracks.map(row)
             .map { $0.map(clean).joined(separator: "\t") }
             .joined(separator: "\n") + "\n"
     }

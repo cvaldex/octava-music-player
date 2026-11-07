@@ -206,4 +206,4 @@ Actualiza esta lista al cerrar cada fase.
 - Editor de tags: línea de ubicación (ruta relativa, completa al pasar el cursor) y "Mostrar en Finder".
 - `AlbumDetailView` lleva `.id(album.id)` en el destino de navegación: sin eso, al reemplazar un disco abierto por otro (ir al disco que suena) SwiftUI reutilizaba la página con el estado (`@State tracks`, `currentAlbumID`) del anterior.
 - Soltar en listas: `trackDropTarget` (SidebarView) en cada lista guardada y en "Nueva lista"; `AppModel.addToPlaylistFromDrop` salta las que ya estaban y avisa con `player.showNotice(_:playlistID:)` (aviso informativo con "Ver lista"). Las listas fijas no aceptan.
-- "Copiar tabla" (página del disco): `TableExport.tsv`, columnas Artista (TPE2, o TPE1 si está vacío), Álbum y Título, separadas por tabulaciones.
+- "Copiar tabla" (página del disco): `TableExport.tsv`, columnas Artista (TPE2, o TPE1 si está vacío), Álbum y Título, separadas por tabulaciones, sin fila de títulos.
