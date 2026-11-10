@@ -5,7 +5,7 @@ reproducción, mezclas aleatorias, listas, edición de tags y scrobbling a Last.
 
 <img src="docs/brand/octava-icon-1024.png" width="128" alt="Ícono de Octava">
 
-**Versión 1.1.0** · macOS 14 Sonoma o posterior · SwiftUI + GRDB (SQLite)
+**Versión 1.2.0** · macOS 14 Sonoma o posterior · SwiftUI + GRDB (SQLite)
 
 Novedades de cada versión en [CHANGELOG.md](CHANGELOG.md).
 
@@ -16,10 +16,12 @@ Novedades de cada versión en [CHANGELOG.md](CHANGELOG.md).
 - **Reproducción sin cortes** (gapless), normalización de volumen, repetir, Centro de Control y teclas multimedia.
 - **Cola "A continuación"**: arrastra canciones o discos a cualquier posición, reordénala con el asa, quita o
   reproduce desde el menú contextual. Clic derecho en cualquier canción: "Detener al terminar esta canción".
-- **Mezclas**: aleatoria de toda la colección o con filtros (décadas, géneros, artistas); se rellenan solas y evitan
-  repetir artista o disco seguidos.
+- **Mezclas**: aleatoria de toda la colección (una página con 100 canciones que no suena hasta pulsar Reproducir)
+  o con filtros (décadas, géneros, artistas); se rellenan solas y evitan repetir artista o disco seguidos.
 - **Listas** propias y fijas que se actualizan solas ("Más escuchadas", "Hace tiempo sin oír", "Canciones cortas"),
-  con conteo de reproducciones. Importa listas `.xspf`, `.m3u` y `.m3u8` de otros programas.
+  con conteo de reproducciones y un filtro dentro de cada una. Arrastra discos o canciones a una lista de la barra
+  lateral para agregarlos. Importa listas `.xspf`, `.m3u` y `.m3u8` de otros programas.
+- **Copiar tabla** de un disco (Artista, Álbum, Título) para pegar en Excel.
 - **Editor de tags** para una o varias canciones (incluida la carátula, que se puede pegar desde el navegador),
   conservando el resto de la etiqueta, con deshacer. Lee y escribe ID3v2.2, v2.3 y v2.4.
 - **Last.fm**: scrobbling (con cola sin conexión), "Reproduciendo ahora" y me gusta.
@@ -36,7 +38,7 @@ Novedades de cada versión en [CHANGELOG.md](CHANGELOG.md).
 | Silenciar | ⌥⌘M |
 | Detener | ⌘. |
 | Ir a la canción actual | ⌘L |
-| Mezcla aleatoria de toda la colección | ⇧⌘S |
+| Ver la mezcla aleatoria de toda la colección | ⇧⌘S |
 | Nueva mezcla con filtros | ⇧⌘M |
 | Nueva lista | ⇧⌘N |
 | Deshacer edición de tags | ⌥⌘Z |
